@@ -1,16 +1,31 @@
 import { useDashboard } from '@/hooks/useDashboard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { formatCurrency, formatPercent, formatDateTime } from '@/lib/formatters';
 import { CLASSE_LABELS, ClasseAtivo } from '@/types/database';
-import { Wallet, TrendingUp, Coins, Clock } from 'lucide-react';
+import { Wallet, TrendingUp, Coins, Clock, Info, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function Dashboard() {
-  const { totalCarteira, aportesDoMes, proventosDoMes, ultimaAtualizacao, rebalanceamento, isLoading } = useDashboard();
+  const { 
+    totalCarteira, 
+    custoTotalCarteira, 
+    aportesDoMes, 
+    proventosDoMes, 
+    ultimaAtualizacao, 
+    rebalanceamento, 
+    temAtivosComPosicao,
+    temPrecoAtualizado,
+    isLoading 
+  } = useDashboard();
+
+  const valorExibido = temPrecoAtualizado ? totalCarteira : custoTotalCarteira;
+  const labelValor = temPrecoAtualizado ? 'Total da Carteira' : 'Custo Total (sem cotação)';
 
   const cards = [
-    { title: 'Total da Carteira', value: formatCurrency(totalCarteira), icon: Wallet, color: 'text-primary' },
+    { title: labelValor, value: valorExibido > 0 ? formatCurrency(valorExibido) : '—', icon: Wallet, color: 'text-primary' },
     { title: 'Aportes do Mês', value: formatCurrency(aportesDoMes), icon: TrendingUp, color: 'text-chart-2' },
     { title: 'Proventos do Mês', value: formatCurrency(proventosDoMes), icon: Coins, color: 'text-chart-3' },
     { title: 'Última Atualização', value: ultimaAtualizacao ? formatDateTime(ultimaAtualizacao) : 'Sem dados', icon: Clock, color: 'text-muted-foreground' },
@@ -22,7 +37,26 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
+      <div className="flex items-center gap-2">
+        <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
+        <Tooltip>
+          <TooltipTrigger>
+            <Info className="h-4 w-4 text-muted-foreground" />
+          </TooltipTrigger>
+          <TooltipContent className="max-w-xs">
+            <p className="text-sm">Os valores iniciais foram cadastrados como saldo histórico consolidado. O controle detalhado de compras passa a valer a partir da data de início do sistema.</p>
+          </TooltipContent>
+        </Tooltip>
+      </div>
+
+      {temAtivosComPosicao && !temPrecoAtualizado && (
+        <Alert variant="default" className="border-amber-500/50 bg-amber-500/10">
+          <AlertCircle className="h-4 w-4 text-amber-500" />
+          <AlertDescription className="text-amber-700 dark:text-amber-400">
+            Preço atual não informado para todos os ativos. Acesse a página Carteira e clique em "Atualizar Preços" ou edite manualmente.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {cards.map((card) => (

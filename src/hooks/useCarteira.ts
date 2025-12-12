@@ -64,5 +64,9 @@ export function useCarteira() {
     carteira: query.data ?? [],
     isLoading: query.isLoading,
     updatePreco: updatePrecoMutation.mutate,
+    refetch: () => {
+      queryClient.invalidateQueries({ queryKey: ['carteira'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
   };
 }
