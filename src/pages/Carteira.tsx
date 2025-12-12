@@ -5,16 +5,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { formatCurrency, formatPercent, formatNumber } from '@/lib/formatters';
 import { CLASSE_LABELS, ClasseAtivo, CarteiraAtual, Moeda } from '@/types/database';
-import { RefreshCw, Edit2 } from 'lucide-react';
+import { RefreshCw, Edit2, Info, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function Carteira() {
-  const { carteira, isLoading, updatePreco } = useCarteira();
+  const { carteira, isLoading, updatePreco, refetch } = useCarteira();
   const [editingAtivo, setEditingAtivo] = useState<CarteiraAtual | null>(null);
   const [novoPreco, setNovoPreco] = useState('');
+  const [isUpdatingPrices, setIsUpdatingPrices] = useState(false);
   const { toast } = useToast();
 
   const handleSavePreco = () => {
@@ -28,16 +31,77 @@ export default function Carteira() {
     setNovoPreco('');
   };
 
+  const handleUpdatePrices = async () => {
+    setIsUpdatingPrices(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('update-prices');
+      
+      if (error) throw error;
+      
+      if (data.atualizados > 0) {
+        toast({ 
+          title: 'Preços atualizados!', 
+          description: `${data.atualizados} ativo(s) atualizado(s).` 
+        });
+      }
+      
+      if (data.falhas && data.falhas.length > 0) {
+        const falhasTickers = data.falhas.map((f: any) => f.ticker).join(', ');
+        toast({ 
+          title: 'Alguns ativos não foram atualizados', 
+          description: falhasTickers,
+          variant: 'destructive'
+        });
+      }
+      
+      refetch();
+    } catch (error) {
+      console.error('Error updating prices:', error);
+      toast({ 
+        title: 'Erro ao atualizar preços', 
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        variant: 'destructive' 
+      });
+    } finally {
+      setIsUpdatingPrices(false);
+    }
+  };
+
+  const hasValidPrice = (ativo: CarteiraAtual) => {
+    return ativo.preco_atual !== null && ativo.preco_atual !== undefined && ativo.preco_atual > 0;
+  };
+
   if (isLoading) {
     return <div className="flex items-center justify-center h-64"><div className="text-muted-foreground">Carregando...</div></div>;
   }
 
+  const ativosComPosicao = carteira.filter(a => a.quantidade_total > 0);
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-foreground">Carteira</h1>
-        <Button variant="outline" size="sm" onClick={() => toast({ title: 'Em breve', description: 'Atualização automática de preços será implementada.' })}>
-          <RefreshCw className="h-4 w-4 mr-2" />
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-foreground">Carteira</h1>
+          <Tooltip>
+            <TooltipTrigger>
+              <Info className="h-4 w-4 text-muted-foreground" />
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs">
+              <p className="text-sm">Os valores iniciais foram cadastrados como saldo histórico consolidado. O controle detalhado de compras passa a valer a partir da data de início do sistema.</p>
+            </TooltipContent>
+          </Tooltip>
+        </div>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={handleUpdatePrices}
+          disabled={isUpdatingPrices}
+        >
+          {isUpdatingPrices ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <RefreshCw className="h-4 w-4 mr-2" />
+          )}
           Atualizar Preços
         </Button>
       </div>
@@ -45,7 +109,7 @@ export default function Carteira() {
       <Card className="border-border">
         <CardHeader><CardTitle className="text-lg">Posição por Ativo</CardTitle></CardHeader>
         <CardContent>
-          {carteira.length === 0 ? (
+          {ativosComPosicao.length === 0 ? (
             <p className="text-muted-foreground text-sm">Cadastre ativos e movimentações para ver sua carteira.</p>
           ) : (
             <div className="overflow-x-auto">
@@ -64,27 +128,34 @@ export default function Carteira() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {carteira.filter(a => a.quantidade_total > 0).map((ativo) => (
-                    <TableRow key={ativo.ativo_id}>
-                      <TableCell className="font-medium">{ativo.ticker}</TableCell>
-                      <TableCell className="text-muted-foreground">{CLASSE_LABELS[ativo.classe as ClasseAtivo]}</TableCell>
-                      <TableCell className="text-right font-mono">{formatNumber(ativo.quantidade_total, 4)}</TableCell>
-                      <TableCell className="text-right font-mono">{formatCurrency(ativo.preco_medio, ativo.moeda_base as Moeda)}</TableCell>
-                      <TableCell className="text-right font-mono">{formatCurrency(ativo.preco_atual, ativo.moeda_base as Moeda)}</TableCell>
-                      <TableCell className="text-right font-mono">{formatCurrency(ativo.valor_atual, ativo.moeda_base as Moeda)}</TableCell>
-                      <TableCell className={cn('text-right font-mono', ativo.lucro_prejuizo >= 0 ? 'text-positive' : 'text-negative')}>
-                        {formatCurrency(ativo.lucro_prejuizo, ativo.moeda_base as Moeda)}
-                      </TableCell>
-                      <TableCell className={cn('text-right font-mono', ativo.lucro_prejuizo_pct >= 0 ? 'text-positive' : 'text-negative')}>
-                        {formatPercent(ativo.lucro_prejuizo_pct)}
-                      </TableCell>
-                      <TableCell>
-                        <Button variant="ghost" size="icon" onClick={() => { setEditingAtivo(ativo); setNovoPreco(ativo.preco_atual?.toString() || ''); }}>
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {ativosComPosicao.map((ativo) => {
+                    const temPreco = hasValidPrice(ativo);
+                    return (
+                      <TableRow key={ativo.ativo_id}>
+                        <TableCell className="font-medium">{ativo.ticker}</TableCell>
+                        <TableCell className="text-muted-foreground">{CLASSE_LABELS[ativo.classe as ClasseAtivo]}</TableCell>
+                        <TableCell className="text-right font-mono">{formatNumber(ativo.quantidade_total, 4)}</TableCell>
+                        <TableCell className="text-right font-mono">{formatCurrency(ativo.preco_medio, ativo.moeda_base as Moeda)}</TableCell>
+                        <TableCell className="text-right font-mono">
+                          {temPreco ? formatCurrency(ativo.preco_atual, ativo.moeda_base as Moeda) : '—'}
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          {temPreco ? formatCurrency(ativo.valor_atual, ativo.moeda_base as Moeda) : '—'}
+                        </TableCell>
+                        <TableCell className={cn('text-right font-mono', temPreco && ativo.lucro_prejuizo >= 0 ? 'text-positive' : temPreco && ativo.lucro_prejuizo < 0 ? 'text-negative' : '')}>
+                          {temPreco ? formatCurrency(ativo.lucro_prejuizo, ativo.moeda_base as Moeda) : '—'}
+                        </TableCell>
+                        <TableCell className={cn('text-right font-mono', temPreco && ativo.lucro_prejuizo_pct >= 0 ? 'text-positive' : temPreco && ativo.lucro_prejuizo_pct < 0 ? 'text-negative' : '')}>
+                          {temPreco ? formatPercent(ativo.lucro_prejuizo_pct) : '—'}
+                        </TableCell>
+                        <TableCell>
+                          <Button variant="ghost" size="icon" onClick={() => { setEditingAtivo(ativo); setNovoPreco(ativo.preco_atual?.toString() || ''); }}>
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>

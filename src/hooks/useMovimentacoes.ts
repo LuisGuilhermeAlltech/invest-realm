@@ -57,6 +57,47 @@ export function useMovimentacoes() {
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, ...data }: {
+      id: string;
+      data: string;
+      ativo_id: string;
+      plataforma_id?: string;
+      tipo: TipoMovimentacao;
+      quantidade: number;
+      preco_unitario: number;
+      moeda: Moeda;
+      taxas?: number;
+      observacao?: string;
+    }) => {
+      const { error } = await supabase
+        .from('movimentacoes')
+        .update({
+          data: data.data,
+          ativo_id: data.ativo_id,
+          plataforma_id: data.plataforma_id || null,
+          tipo: data.tipo,
+          quantidade: data.quantidade,
+          preco_unitario: data.preco_unitario,
+          moeda: data.moeda,
+          taxas: data.taxas || 0,
+          observacao: data.observacao || null,
+        })
+        .eq('id', id)
+        .eq('user_id', user!.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['movimentacoes'] });
+      queryClient.invalidateQueries({ queryKey: ['carteira'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      toast({ title: 'Movimentação atualizada com sucesso!' });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Erro ao atualizar movimentação', description: error.message, variant: 'destructive' });
+    },
+  });
+
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from('movimentacoes').delete().eq('id', id);
@@ -77,6 +118,7 @@ export function useMovimentacoes() {
     movimentacoes: query.data ?? [],
     isLoading: query.isLoading,
     createMovimentacao: createMutation.mutate,
+    updateMovimentacao: updateMutation.mutate,
     deleteMovimentacao: deleteMutation.mutate,
   };
 }

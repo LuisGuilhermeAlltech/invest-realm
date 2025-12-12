@@ -5,16 +5,29 @@ import { useAuth } from '@/contexts/AuthContext';
 export function useDashboard() {
   const { user } = useAuth();
 
-  const totalCarteiraQuery = useQuery({
-    queryKey: ['dashboard', 'total', user?.id],
+  const carteiraQuery = useQuery({
+    queryKey: ['dashboard', 'carteira', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('vw_carteira_atual')
-        .select('valor_atual')
+        .select('valor_atual, custo_total, quantidade_total, preco_atual')
         .eq('user_id', user!.id);
       
       if (error) throw error;
-      return data.reduce((acc, row) => acc + (row.valor_atual || 0), 0);
+      
+      const ativosComPosicao = data.filter(row => row.quantidade_total > 0);
+      const ativosComPreco = ativosComPosicao.filter(row => row.preco_atual !== null && row.preco_atual > 0);
+      
+      // Only sum valor_atual for assets that have valid prices
+      const totalCarteira = ativosComPreco.reduce((acc, row) => acc + (row.valor_atual || 0), 0);
+      const custoTotalCarteira = ativosComPosicao.reduce((acc, row) => acc + (row.custo_total || 0), 0);
+      
+      return {
+        totalCarteira,
+        custoTotalCarteira,
+        temAtivosComPosicao: ativosComPosicao.length > 0,
+        temPrecoAtualizado: ativosComPreco.length > 0 && ativosComPreco.length === ativosComPosicao.length,
+      };
     },
     enabled: !!user,
   });
@@ -90,13 +103,16 @@ export function useDashboard() {
   });
 
   return {
-    totalCarteira: totalCarteiraQuery.data ?? 0,
+    totalCarteira: carteiraQuery.data?.totalCarteira ?? 0,
+    custoTotalCarteira: carteiraQuery.data?.custoTotalCarteira ?? 0,
+    temAtivosComPosicao: carteiraQuery.data?.temAtivosComPosicao ?? false,
+    temPrecoAtualizado: carteiraQuery.data?.temPrecoAtualizado ?? false,
     aportesDoMes: aportesDoMesQuery.data ?? 0,
     proventosDoMes: proventosDoMesQuery.data ?? 0,
     ultimaAtualizacao: ultimaAtualizacaoQuery.data,
     rebalanceamento: rebalanceamentoQuery.data ?? [],
     isLoading: 
-      totalCarteiraQuery.isLoading || 
+      carteiraQuery.isLoading || 
       aportesDoMesQuery.isLoading || 
       proventosDoMesQuery.isLoading ||
       ultimaAtualizacaoQuery.isLoading ||
