@@ -159,16 +159,14 @@ export default function Carteira() {
       : <AlertCircle className="h-5 w-5 text-destructive mt-0.5" />;
   };
 
-  if (isLoading || cliLoading) {
-    return <div className="flex items-center justify-center h-64"><div className="text-muted-foreground">Carregando...</div></div>;
-  }
-
   // Helper to get CLI data for an asset
   const getCliData = (ativoId: string) => {
     return cliPorAtivo.find(c => c.ativo_id === ativoId);
   };
 
-  const ativosComPosicao = carteira.filter(a => a.quantidade_total > 0);
+  const ativosComPosicao = useMemo(() => {
+    return carteira.filter(a => a.quantidade_total > 0);
+  }, [carteira]);
 
   // Count assets per class
   const contagemPorClasse = useMemo(() => {
@@ -184,6 +182,10 @@ export default function Carteira() {
     if (filtroClasse === 'todas') return ativosComPosicao;
     return ativosComPosicao.filter(a => a.classe === filtroClasse);
   }, [ativosComPosicao, filtroClasse]);
+
+  if (isLoading || cliLoading) {
+    return <div className="flex items-center justify-center h-64"><div className="text-muted-foreground">Carregando...</div></div>;
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
