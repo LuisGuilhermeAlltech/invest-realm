@@ -14,6 +14,7 @@ import {
   Menu,
   X,
   TrendingUp,
+  Wallet,
 } from 'lucide-react';
 
 interface AppLayoutProps {
@@ -23,6 +24,7 @@ interface AppLayoutProps {
 const navItems = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/carteira', label: 'Carteira', icon: Briefcase },
+  { path: '/caixa', label: 'Caixa', icon: Wallet },
   { path: '/movimentacoes', label: 'Movimentações', icon: ArrowLeftRight },
   { path: '/proventos', label: 'Proventos', icon: Coins },
   { path: '/metas', label: 'Metas', icon: Target },

@@ -50,6 +50,36 @@ export function useDashboard() {
     enabled: !!user && !exchangeLoading,
   });
 
+  // Fetch cash accounts totals
+  const caixaQuery = useQuery({
+    queryKey: ['dashboard', 'caixa', user?.id, usdBrl],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('vw_saldo_contas')
+        .select('saldo, moeda')
+        .eq('user_id', user!.id);
+      
+      if (error) throw error;
+      
+      const totalBRL = data
+        .filter(a => a.moeda === 'BRL')
+        .reduce((sum, a) => sum + (a.saldo || 0), 0);
+      
+      const totalUSD = data
+        .filter(a => a.moeda === 'USD')
+        .reduce((sum, a) => sum + (a.saldo || 0), 0);
+
+      const totalCaixaBRL = totalBRL + (totalUSD * usdBrl);
+
+      return {
+        totalBRL,
+        totalUSD,
+        totalCaixaBRL,
+      };
+    },
+    enabled: !!user && !exchangeLoading,
+  });
+
   const aportesDoMesQuery = useQuery({
     queryKey: ['dashboard', 'aportes', user?.id],
     queryFn: async () => {
@@ -162,11 +192,19 @@ export function useDashboard() {
     enabled: !!user && !exchangeLoading,
   });
 
+  const totalCarteira = carteiraQuery.data?.totalCarteira ?? 0;
+  const totalCaixaBRL = caixaQuery.data?.totalCaixaBRL ?? 0;
+  const patrimonioTotal = totalCarteira + totalCaixaBRL;
+
   return {
-    totalCarteira: carteiraQuery.data?.totalCarteira ?? 0,
+    totalCarteira,
     custoTotalCarteira: carteiraQuery.data?.custoTotalCarteira ?? 0,
     temAtivosComPosicao: carteiraQuery.data?.temAtivosComPosicao ?? false,
     temPrecoAtualizado: carteiraQuery.data?.temPrecoAtualizado ?? false,
+    totalCaixaBRL,
+    caixaBRL: caixaQuery.data?.totalBRL ?? 0,
+    caixaUSD: caixaQuery.data?.totalUSD ?? 0,
+    patrimonioTotal,
     aportesDoMes: aportesDoMesQuery.data ?? 0,
     proventosDoMes: proventosDoMesQuery.data ?? 0,
     ultimaAtualizacao: ultimaAtualizacaoQuery.data,
@@ -176,6 +214,7 @@ export function useDashboard() {
     exchangeSource,
     isLoading: 
       carteiraQuery.isLoading || 
+      caixaQuery.isLoading ||
       aportesDoMesQuery.isLoading || 
       proventosDoMesQuery.isLoading ||
       ultimaAtualizacaoQuery.isLoading ||
