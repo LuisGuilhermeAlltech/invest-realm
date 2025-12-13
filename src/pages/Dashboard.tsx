@@ -4,7 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { formatCurrency, formatPercent, formatDateTime } from '@/lib/formatters';
 import { CLASSE_LABELS, ClasseAtivo } from '@/types/database';
-import { Wallet, TrendingUp, Coins, Clock, Info, AlertCircle } from 'lucide-react';
+import { Wallet, TrendingUp, Coins, Clock, Info, AlertCircle, Landmark, PiggyBank } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -18,6 +18,8 @@ export default function Dashboard() {
     rebalanceamento, 
     temAtivosComPosicao,
     temPrecoAtualizado,
+    totalCaixaBRL,
+    patrimonioTotal,
     usdBrl,
     exchangeDate,
     isLoading 
@@ -34,14 +36,7 @@ export default function Dashboard() {
   };
 
   const valorExibido = temPrecoAtualizado ? totalCarteira : custoTotalCarteira;
-  const labelValor = temPrecoAtualizado ? 'Total da Carteira' : 'Custo Total (sem cotação)';
-
-  const cards = [
-    { title: labelValor, value: valorExibido > 0 ? formatCurrency(valorExibido) : '—', icon: Wallet, color: 'text-primary' },
-    { title: 'Aportes do Mês', value: formatCurrency(aportesDoMes), icon: TrendingUp, color: 'text-chart-2' },
-    { title: 'Proventos do Mês', value: formatCurrency(proventosDoMes), icon: Coins, color: 'text-chart-3' },
-    { title: 'Última Atualização', value: ultimaAtualizacao ? formatDateTime(ultimaAtualizacao) : 'Sem dados', icon: Clock, color: 'text-muted-foreground' },
-  ];
+  const labelValor = temPrecoAtualizado ? 'Total em Ativos' : 'Custo Total (sem cotação)';
 
   if (isLoading) {
     return <div className="flex items-center justify-center h-64"><div className="text-muted-foreground">Carregando...</div></div>;
@@ -79,18 +74,69 @@ export default function Dashboard() {
         )}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {cards.map((card) => (
-          <Card key={card.title} className="border-border">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">{card.title}</CardTitle>
-              <card.icon className={cn('h-4 w-4', card.color)} />
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl font-bold font-mono">{card.value}</div>
-            </CardContent>
-          </Card>
-        ))}
+      {/* Main summary cards - Patrimônio, Ativos, Caixa */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card className="border-primary/20 bg-primary/5">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Patrimônio Total</CardTitle>
+            <PiggyBank className="h-4 w-4 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold font-mono text-primary">
+              {temPrecoAtualizado || totalCaixaBRL > 0 ? formatCurrency(patrimonioTotal) : '—'}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Ativos + Caixa em BRL</p>
+          </CardContent>
+        </Card>
+        <Card className="border-border">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">{labelValor}</CardTitle>
+            <Wallet className="h-4 w-4 text-chart-1" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl font-bold font-mono">{valorExibido > 0 ? formatCurrency(valorExibido) : '—'}</div>
+          </CardContent>
+        </Card>
+        <Card className="border-border">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Caixa Total (BRL)</CardTitle>
+            <Landmark className="h-4 w-4 text-chart-2" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl font-bold font-mono">{formatCurrency(totalCaixaBRL)}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Secondary cards - Aportes, Proventos, Atualização */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card className="border-border">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Aportes do Mês</CardTitle>
+            <TrendingUp className="h-4 w-4 text-chart-3" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl font-bold font-mono">{formatCurrency(aportesDoMes)}</div>
+          </CardContent>
+        </Card>
+        <Card className="border-border">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Proventos do Mês</CardTitle>
+            <Coins className="h-4 w-4 text-chart-4" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl font-bold font-mono">{formatCurrency(proventosDoMes)}</div>
+          </CardContent>
+        </Card>
+        <Card className="border-border">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Última Atualização</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl font-bold font-mono">{ultimaAtualizacao ? formatDateTime(ultimaAtualizacao) : 'Sem dados'}</div>
+          </CardContent>
+        </Card>
       </div>
 
       <Card className="border-border">
