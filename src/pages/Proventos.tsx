@@ -111,19 +111,18 @@ export default function Proventos() {
             </div>
             <div>
               <Label>Conta Destino (opcional)</Label>
-              <Select value={form.conta_destino_id} onValueChange={(v) => setForm({...form, conta_destino_id: v})}>
+              <Select value={form.conta_destino_id} onValueChange={(v) => setForm({...form, conta_destino_id: v === 'none' ? '' : v})}>
                 <SelectTrigger><SelectValue placeholder="Selecione para creditar no Caixa" /></SelectTrigger>
                 <SelectContent>
-                  {filteredAccounts.length === 0 ? (
-                    <SelectItem value="" disabled>Nenhuma conta em {form.moeda}</SelectItem>
-                  ) : (
-                    filteredAccounts.map((a) => <SelectItem key={a.id} value={a.id}>{a.nome}</SelectItem>)
-                  )}
+                  <SelectItem value="none">Sem conta (não credita no Caixa)</SelectItem>
+                  {filteredAccounts.map((a) => <SelectItem key={a.id} value={a.id}>{a.nome}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground mt-1">
-                Apenas contas em {form.moeda} são exibidas.
-              </p>
+              {filteredAccounts.length === 0 && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Nenhuma conta em {form.moeda} cadastrada.
+                </p>
+              )}
             </div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button><Button onClick={handleSubmit}>Salvar</Button></DialogFooter>
