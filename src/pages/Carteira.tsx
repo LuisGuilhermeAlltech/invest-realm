@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useCarteira } from '@/hooks/useCarteira';
 import { useCapitalLiquido } from '@/hooks/useCapitalLiquido';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatCurrency, formatPercent, formatNumber } from '@/lib/formatters';
 import { CLASSE_LABELS, ClasseAtivo, CarteiraAtual, Moeda } from '@/types/database';
 import { RefreshCw, Edit2, Info, Loader2, AlertCircle, CheckCircle2, DollarSign } from 'lucide-react';
@@ -17,6 +18,8 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Label } from '@/components/ui/label';
 import { format } from 'date-fns';
+
+const STORAGE_KEY = 'carteira-filtro-classe';
 
 interface UpdateResult {
   ticker: string;
@@ -38,7 +41,15 @@ export default function Carteira() {
   const [updateResults, setUpdateResults] = useState<UpdateResult[]>([]);
   const [showResultsModal, setShowResultsModal] = useState(false);
   const [isRendaFixaModal, setIsRendaFixaModal] = useState(false);
+  const [filtroClasse, setFiltroClasse] = useState<string>(() => {
+    return localStorage.getItem(STORAGE_KEY) || 'todas';
+  });
   const { toast } = useToast();
+
+  // Persist filter to localStorage
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, filtroClasse);
+  }, [filtroClasse]);
 
   const handleSavePreco = () => {
     if (!editingAtivo || !novoPreco) return;
@@ -159,6 +170,21 @@ export default function Carteira() {
 
   const ativosComPosicao = carteira.filter(a => a.quantidade_total > 0);
 
+  // Count assets per class
+  const contagemPorClasse = useMemo(() => {
+    const contagem: Record<string, number> = {};
+    ativosComPosicao.forEach(a => {
+      contagem[a.classe] = (contagem[a.classe] || 0) + 1;
+    });
+    return contagem;
+  }, [ativosComPosicao]);
+
+  // Filter assets by selected class
+  const ativosFiltrados = useMemo(() => {
+    if (filtroClasse === 'todas') return ativosComPosicao;
+    return ativosComPosicao.filter(a => a.classe === filtroClasse);
+  }, [ativosComPosicao, filtroClasse]);
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
@@ -201,10 +227,33 @@ export default function Carteira() {
       </div>
 
       <Card className="border-border">
-        <CardHeader><CardTitle className="text-lg">Posição por Ativo</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <CardTitle className="text-lg">Posição por Ativo</CardTitle>
+          <Select value={filtroClasse} onValueChange={setFiltroClasse}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Filtrar por classe" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todas">
+                Todas ({ativosComPosicao.length})
+              </SelectItem>
+              {Object.entries(CLASSE_LABELS).map(([key, label]) => {
+                const count = contagemPorClasse[key] || 0;
+                if (count === 0) return null;
+                return (
+                  <SelectItem key={key} value={key}>
+                    {label} ({count})
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
+        </CardHeader>
         <CardContent>
           {ativosComPosicao.length === 0 ? (
             <p className="text-muted-foreground text-sm">Cadastre ativos e movimentações para ver sua carteira.</p>
+          ) : ativosFiltrados.length === 0 ? (
+            <p className="text-muted-foreground text-sm">Nenhum ativo nesta categoria.</p>
           ) : (
             <div className="overflow-x-auto">
               <Table>
@@ -234,7 +283,7 @@ export default function Carteira() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {ativosComPosicao.map((ativo) => {
+                  {ativosFiltrados.map((ativo) => {
                     const temPreco = hasValidPrice(ativo);
                     const ehRendaFixa = isRendaFixa(ativo.classe);
                     const cli = getCliData(ativo.ativo_id);
