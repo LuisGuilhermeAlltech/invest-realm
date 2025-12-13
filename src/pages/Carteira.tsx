@@ -189,25 +189,47 @@ export default function Carteira() {
     return ativosComPosicao.filter(a => a.classe === filtroClasse);
   }, [ativosComPosicao, filtroClasse]);
 
-  // Calculate weighted average price for filtered assets (in BRL)
+  // Calculate weighted average price for filtered assets
+  // PM é calculado por moeda (não faz sentido misturar USD e BRL)
+  // Para exibição consolidada, mostramos custo total em BRL
   const resumoFiltro = useMemo(() => {
     if (ativosFiltrados.length === 0) {
-      return { custoTotalBrl: 0, quantidadeTotal: 0, precoMedio: null };
+      return { custoTotalBrl: 0, custoTotalUsd: 0, hasUsd: false, hasBrl: false };
     }
 
     let custoTotalBrl = 0;
-    let quantidadeTotal = 0;
+    let custoTotalUsd = 0;
+    let qtdBrl = 0;
+    let qtdUsd = 0;
 
     ativosFiltrados.forEach(a => {
-      // Convert to BRL if USD
-      const custoEmBrl = a.moeda_base === 'USD' ? a.custo_total * usdBrl : a.custo_total;
-      custoTotalBrl += custoEmBrl;
-      quantidadeTotal += a.quantidade_total;
+      if (a.moeda_base === 'USD') {
+        // Cálculos em USD para ativos USD
+        custoTotalUsd += a.custo_total;
+        qtdUsd += a.quantidade_total;
+      } else {
+        // Cálculos em BRL para ativos BRL
+        custoTotalBrl += a.custo_total;
+        qtdBrl += a.quantidade_total;
+      }
     });
 
-    const precoMedio = quantidadeTotal > 0 ? custoTotalBrl / quantidadeTotal : null;
+    // PM calculado separadamente por moeda: custo_total / quantidade_total
+    const pmBrl = qtdBrl > 0 ? custoTotalBrl / qtdBrl : null;
+    const pmUsd = qtdUsd > 0 ? custoTotalUsd / qtdUsd : null;
 
-    return { custoTotalBrl, quantidadeTotal, precoMedio };
+    // Custo total consolidado em BRL para exibição
+    const custoConsolidadoBrl = custoTotalBrl + (custoTotalUsd * usdBrl);
+
+    return { 
+      custoConsolidadoBrl,
+      custoTotalBrl, 
+      custoTotalUsd, 
+      pmBrl,
+      pmUsd,
+      hasUsd: qtdUsd > 0, 
+      hasBrl: qtdBrl > 0 
+    };
   }, [ativosFiltrados, usdBrl]);
 
   // Handle saving asset metadata
@@ -286,21 +308,30 @@ export default function Carteira() {
             </Select>
           </div>
           {/* Resumo do filtro */}
-          <div className="flex items-center gap-4 text-sm bg-muted/50 p-3 rounded-lg">
+          <div className="flex flex-wrap items-center gap-4 text-sm bg-muted/50 p-3 rounded-lg">
             <span className="text-muted-foreground">
               Categoria: <span className="text-foreground font-medium">{filtroClasse === 'todas' ? 'Todas' : CLASSE_LABELS[filtroClasse as ClasseAtivo]}</span>
             </span>
             <span className="text-muted-foreground">|</span>
             <span className="text-muted-foreground">
-              Custo Total: <span className="text-foreground font-medium">{formatCurrency(resumoFiltro.custoTotalBrl)}</span>
+              Custo Total: <span className="text-foreground font-medium">{formatCurrency(resumoFiltro.custoConsolidadoBrl)}</span>
             </span>
-            <span className="text-muted-foreground">|</span>
-            <span className="text-muted-foreground">
-              Preço Médio Ponderado:{' '}
-              <span className="text-foreground font-medium">
-                {resumoFiltro.precoMedio !== null ? formatCurrency(resumoFiltro.precoMedio) : 'Indisponível'}
-              </span>
-            </span>
+            {resumoFiltro.hasBrl && (
+              <>
+                <span className="text-muted-foreground">|</span>
+                <span className="text-muted-foreground">
+                  PM (BRL): <span className="text-foreground font-medium">{formatCurrency(resumoFiltro.pmBrl ?? 0)}</span>
+                </span>
+              </>
+            )}
+            {resumoFiltro.hasUsd && (
+              <>
+                <span className="text-muted-foreground">|</span>
+                <span className="text-muted-foreground">
+                  PM (USD): <span className="text-foreground font-medium">{formatCurrency(resumoFiltro.pmUsd ?? 0, 'USD')}</span>
+                </span>
+              </>
+            )}
           </div>
         </CardHeader>
         <CardContent>
