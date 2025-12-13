@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useCarteira } from '@/hooks/useCarteira';
 import { useCapitalLiquido } from '@/hooks/useCapitalLiquido';
+import { useAtivos } from '@/hooks/useAtivos';
+import { useExchangeRate } from '@/hooks/useExchangeRate';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -10,7 +12,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatCurrency, formatPercent, formatNumber } from '@/lib/formatters';
 import { CLASSE_LABELS, ClasseAtivo, CarteiraAtual, Moeda } from '@/types/database';
-import { RefreshCw, Edit2, Info, Loader2, AlertCircle, CheckCircle2, DollarSign } from 'lucide-react';
+import { RefreshCw, Edit2, Info, Loader2, AlertCircle, CheckCircle2, DollarSign, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -18,6 +20,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Label } from '@/components/ui/label';
 import { format } from 'date-fns';
+import { EditarAtivoModal } from '@/components/carteira/EditarAtivoModal';
 
 const STORAGE_KEY = 'carteira-filtro-classe';
 
@@ -34,7 +37,10 @@ interface UpdateResult {
 export default function Carteira() {
   const { carteira, isLoading, updatePreco, refetch } = useCarteira();
   const { porAtivo: cliPorAtivo, isLoading: cliLoading } = useCapitalLiquido();
+  const { updateAtivo } = useAtivos();
+  const { usdBrl } = useExchangeRate();
   const [editingAtivo, setEditingAtivo] = useState<CarteiraAtual | null>(null);
+  const [editingAtivoMeta, setEditingAtivoMeta] = useState<CarteiraAtual | null>(null);
   const [novoPreco, setNovoPreco] = useState('');
   const [dataPreco, setDataPreco] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [isUpdatingPrices, setIsUpdatingPrices] = useState(false);
@@ -183,6 +189,33 @@ export default function Carteira() {
     return ativosComPosicao.filter(a => a.classe === filtroClasse);
   }, [ativosComPosicao, filtroClasse]);
 
+  // Calculate weighted average price for filtered assets (in BRL)
+  const resumoFiltro = useMemo(() => {
+    if (ativosFiltrados.length === 0) {
+      return { custoTotalBrl: 0, quantidadeTotal: 0, precoMedio: null };
+    }
+
+    let custoTotalBrl = 0;
+    let quantidadeTotal = 0;
+
+    ativosFiltrados.forEach(a => {
+      // Convert to BRL if USD
+      const custoEmBrl = a.moeda_base === 'USD' ? a.custo_total * usdBrl : a.custo_total;
+      custoTotalBrl += custoEmBrl;
+      quantidadeTotal += a.quantidade_total;
+    });
+
+    const precoMedio = quantidadeTotal > 0 ? custoTotalBrl / quantidadeTotal : null;
+
+    return { custoTotalBrl, quantidadeTotal, precoMedio };
+  }, [ativosFiltrados, usdBrl]);
+
+  // Handle saving asset metadata
+  const handleSaveAtivoMeta = (id: string, data: { classe: ClasseAtivo; nome?: string }) => {
+    updateAtivo({ id, ...data });
+    refetch();
+  };
+
   if (isLoading || cliLoading) {
     return <div className="flex items-center justify-center h-64"><div className="text-muted-foreground">Carregando...</div></div>;
   }
@@ -229,27 +262,46 @@ export default function Carteira() {
       </div>
 
       <Card className="border-border">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-lg">Posição por Ativo</CardTitle>
-          <Select value={filtroClasse} onValueChange={setFiltroClasse}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Filtrar por classe" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todas">
-                Todas ({ativosComPosicao.length})
-              </SelectItem>
-              {Object.entries(CLASSE_LABELS).map(([key, label]) => {
-                const count = contagemPorClasse[key] || 0;
-                if (count === 0) return null;
-                return (
-                  <SelectItem key={key} value={key}>
-                    {label} ({count})
-                  </SelectItem>
-                );
-              })}
-            </SelectContent>
-          </Select>
+        <CardHeader className="flex flex-col gap-4">
+          <div className="flex flex-row items-center justify-between">
+            <CardTitle className="text-lg">Posição por Ativo</CardTitle>
+            <Select value={filtroClasse} onValueChange={setFiltroClasse}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Filtrar por classe" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">
+                  Todas ({ativosComPosicao.length})
+                </SelectItem>
+                {Object.entries(CLASSE_LABELS).map(([key, label]) => {
+                  const count = contagemPorClasse[key] || 0;
+                  if (count === 0) return null;
+                  return (
+                    <SelectItem key={key} value={key}>
+                      {label} ({count})
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          </div>
+          {/* Resumo do filtro */}
+          <div className="flex items-center gap-4 text-sm bg-muted/50 p-3 rounded-lg">
+            <span className="text-muted-foreground">
+              Categoria: <span className="text-foreground font-medium">{filtroClasse === 'todas' ? 'Todas' : CLASSE_LABELS[filtroClasse as ClasseAtivo]}</span>
+            </span>
+            <span className="text-muted-foreground">|</span>
+            <span className="text-muted-foreground">
+              Custo Total: <span className="text-foreground font-medium">{formatCurrency(resumoFiltro.custoTotalBrl)}</span>
+            </span>
+            <span className="text-muted-foreground">|</span>
+            <span className="text-muted-foreground">
+              Preço Médio Ponderado:{' '}
+              <span className="text-foreground font-medium">
+                {resumoFiltro.precoMedio !== null ? formatCurrency(resumoFiltro.precoMedio) : 'Indisponível'}
+              </span>
+            </span>
+          </div>
         </CardHeader>
         <CardContent>
           {ativosComPosicao.length === 0 ? (
@@ -315,6 +367,14 @@ export default function Carteira() {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="ghost" size="icon" onClick={() => setEditingAtivoMeta(ativo)}>
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Editar ativo</TooltipContent>
+                            </Tooltip>
                             {ehRendaFixa ? (
                               <Tooltip>
                                 <TooltipTrigger asChild>
@@ -458,6 +518,14 @@ export default function Carteira() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Modal para editar metadados do ativo */}
+      <EditarAtivoModal
+        ativo={editingAtivoMeta}
+        open={!!editingAtivoMeta}
+        onOpenChange={(open) => !open && setEditingAtivoMeta(null)}
+        onSave={handleSaveAtivoMeta}
+      />
     </div>
   );
 }
