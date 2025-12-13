@@ -18,8 +18,20 @@ export default function Dashboard() {
     rebalanceamento, 
     temAtivosComPosicao,
     temPrecoAtualizado,
+    usdBrl,
+    exchangeDate,
     isLoading 
   } = useDashboard();
+
+  const formatExchangeDate = (dateStr: string | null) => {
+    if (!dateStr) return '';
+    try {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('pt-BR');
+    } catch {
+      return dateStr.split(' ')[0];
+    }
+  };
 
   const valorExibido = temPrecoAtualizado ? totalCarteira : custoTotalCarteira;
   const labelValor = temPrecoAtualizado ? 'Total da Carteira' : 'Custo Total (sem cotação)';
@@ -57,6 +69,15 @@ export default function Dashboard() {
           </AlertDescription>
         </Alert>
       )}
+
+      {/* Exchange rate indicator */}
+      <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-1.5 w-fit">
+        <span className="font-medium">USD/BRL:</span>
+        <span className="font-mono">{usdBrl.toFixed(2)}</span>
+        {exchangeDate && (
+          <span className="text-muted-foreground/70">({formatExchangeDate(exchangeDate)})</span>
+        )}
+      </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {cards.map((card) => (

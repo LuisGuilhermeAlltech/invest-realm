@@ -1,16 +1,18 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useExchangeRate } from '@/hooks/useExchangeRate';
 
 export function useDashboard() {
   const { user } = useAuth();
+  const { usdBrl, exchangeDate, exchangeSource, isLoading: exchangeLoading } = useExchangeRate();
 
   const carteiraQuery = useQuery({
-    queryKey: ['dashboard', 'carteira', user?.id],
+    queryKey: ['dashboard', 'carteira', user?.id, usdBrl],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('vw_carteira_atual')
-        .select('valor_atual, custo_total, quantidade_total, preco_atual')
+        .select('valor_atual, custo_total, quantidade_total, preco_atual, moeda_base, classe')
         .eq('user_id', user!.id);
       
       if (error) throw error;
@@ -18,9 +20,25 @@ export function useDashboard() {
       const ativosComPosicao = data.filter(row => row.quantidade_total > 0);
       const ativosComPreco = ativosComPosicao.filter(row => row.preco_atual !== null && row.preco_atual > 0);
       
-      // Only sum valor_atual for assets that have valid prices
-      const totalCarteira = ativosComPreco.reduce((acc, row) => acc + (row.valor_atual || 0), 0);
-      const custoTotalCarteira = ativosComPosicao.reduce((acc, row) => acc + (row.custo_total || 0), 0);
+      // Convert USD values to BRL before summing
+      const convertToBrl = (valor: number, moeda: string | null) => {
+        if (moeda === 'USD') {
+          return valor * usdBrl;
+        }
+        return valor;
+      };
+      
+      // Only sum valor_atual for assets that have valid prices, converting USD to BRL
+      const totalCarteira = ativosComPreco.reduce((acc, row) => {
+        const valorBrl = convertToBrl(row.valor_atual || 0, row.moeda_base);
+        return acc + valorBrl;
+      }, 0);
+      
+      // Custo total also needs conversion
+      const custoTotalCarteira = ativosComPosicao.reduce((acc, row) => {
+        const custoBrl = convertToBrl(row.custo_total || 0, row.moeda_base);
+        return acc + custoBrl;
+      }, 0);
       
       return {
         totalCarteira,
@@ -29,7 +47,7 @@ export function useDashboard() {
         temPrecoAtualizado: ativosComPreco.length > 0 && ativosComPreco.length === ativosComPosicao.length,
       };
     },
-    enabled: !!user,
+    enabled: !!user && !exchangeLoading,
   });
 
   const aportesDoMesQuery = useQuery({
@@ -88,18 +106,60 @@ export function useDashboard() {
     enabled: !!user,
   });
 
+  // Fetch carteira data with moeda_base to recalculate rebalanceamento with USD conversion
   const rebalanceamentoQuery = useQuery({
-    queryKey: ['dashboard', 'rebalanceamento', user?.id],
+    queryKey: ['dashboard', 'rebalanceamento', user?.id, usdBrl],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // First get the raw rebalanceamento data
+      const { data: rebalData, error: rebalError } = await supabase
         .from('vw_rebalanceamento')
         .select('*')
         .eq('user_id', user!.id);
       
-      if (error) throw error;
-      return data;
+      if (rebalError) throw rebalError;
+      
+      // Get carteira data with moeda_base to know which values need conversion
+      const { data: carteiraData, error: carteiraError } = await supabase
+        .from('vw_carteira_atual')
+        .select('classe, valor_atual, moeda_base, quantidade_total, preco_atual')
+        .eq('user_id', user!.id);
+      
+      if (carteiraError) throw carteiraError;
+      
+      // Calculate the correct totals per class with USD conversion
+      const totaisPorClasse: Record<string, number> = {};
+      let totalCarteiraConvertido = 0;
+      
+      carteiraData
+        .filter(row => row.quantidade_total > 0 && row.preco_atual !== null && row.preco_atual > 0)
+        .forEach(row => {
+          let valorBrl = row.valor_atual || 0;
+          if (row.moeda_base === 'USD') {
+            valorBrl = valorBrl * usdBrl;
+          }
+          
+          const classe = row.classe as string;
+          totaisPorClasse[classe] = (totaisPorClasse[classe] || 0) + valorBrl;
+          totalCarteiraConvertido += valorBrl;
+        });
+      
+      // Recalculate rebalanceamento with converted values
+      return rebalData.map(row => {
+        const classe = row.classe as string;
+        const valorAtualConvertido = totaisPorClasse[classe] || 0;
+        const valorIdeal = totalCarteiraConvertido * (row.percentual_alvo / 100);
+        const diferenca = valorIdeal - valorAtualConvertido;
+        
+        return {
+          ...row,
+          valor_atual: valorAtualConvertido,
+          total_carteira: totalCarteiraConvertido,
+          valor_ideal: valorIdeal,
+          diferenca: diferenca,
+        };
+      });
     },
-    enabled: !!user,
+    enabled: !!user && !exchangeLoading,
   });
 
   return {
@@ -111,11 +171,15 @@ export function useDashboard() {
     proventosDoMes: proventosDoMesQuery.data ?? 0,
     ultimaAtualizacao: ultimaAtualizacaoQuery.data,
     rebalanceamento: rebalanceamentoQuery.data ?? [],
+    usdBrl,
+    exchangeDate,
+    exchangeSource,
     isLoading: 
       carteiraQuery.isLoading || 
       aportesDoMesQuery.isLoading || 
       proventosDoMesQuery.isLoading ||
       ultimaAtualizacaoQuery.isLoading ||
-      rebalanceamentoQuery.isLoading,
+      rebalanceamentoQuery.isLoading ||
+      exchangeLoading,
   };
 }
