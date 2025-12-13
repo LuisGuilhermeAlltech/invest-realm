@@ -81,7 +81,7 @@ export function useDashboard() {
   });
 
   const aportesDoMesQuery = useQuery({
-    queryKey: ['dashboard', 'aportes', user?.id],
+    queryKey: ['dashboard', 'aportes', user?.id, usdBrl],
     queryFn: async () => {
       const startOfMonth = new Date();
       startOfMonth.setDate(1);
@@ -89,19 +89,23 @@ export function useDashboard() {
       
       const { data, error } = await supabase
         .from('movimentacoes')
-        .select('quantidade, preco_unitario, tipo')
+        .select('quantidade, preco_unitario, tipo, moeda')
         .eq('user_id', user!.id)
         .in('tipo', ['compra', 'aporte'])
         .gte('data', startOfMonth.toISOString().split('T')[0]);
       
       if (error) throw error;
-      return data.reduce((acc, row) => acc + (row.quantidade * row.preco_unitario), 0);
+      return data.reduce((acc, row) => {
+        const valor = row.quantidade * row.preco_unitario;
+        const valorBrl = row.moeda === 'USD' ? valor * usdBrl : valor;
+        return acc + valorBrl;
+      }, 0);
     },
-    enabled: !!user,
+    enabled: !!user && !exchangeLoading,
   });
 
   const proventosDoMesQuery = useQuery({
-    queryKey: ['dashboard', 'proventos', user?.id],
+    queryKey: ['dashboard', 'proventos', user?.id, usdBrl],
     queryFn: async () => {
       const startOfMonth = new Date();
       startOfMonth.setDate(1);
@@ -109,14 +113,17 @@ export function useDashboard() {
       
       const { data, error } = await supabase
         .from('proventos')
-        .select('valor')
+        .select('valor, moeda')
         .eq('user_id', user!.id)
         .gte('data', startOfMonth.toISOString().split('T')[0]);
       
       if (error) throw error;
-      return data.reduce((acc, row) => acc + (row.valor || 0), 0);
+      return data.reduce((acc, row) => {
+        const valorBrl = row.moeda === 'USD' ? (row.valor || 0) * usdBrl : (row.valor || 0);
+        return acc + valorBrl;
+      }, 0);
     },
-    enabled: !!user,
+    enabled: !!user && !exchangeLoading,
   });
 
   const ultimaAtualizacaoQuery = useQuery({
