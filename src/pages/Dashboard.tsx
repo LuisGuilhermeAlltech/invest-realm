@@ -1,10 +1,11 @@
 import { useDashboard } from '@/hooks/useDashboard';
+import { useCapitalLiquido } from '@/hooks/useCapitalLiquido';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { formatCurrency, formatPercent, formatDateTime } from '@/lib/formatters';
 import { CLASSE_LABELS, ClasseAtivo } from '@/types/database';
-import { Wallet, TrendingUp, Coins, Clock, Info, AlertCircle, Landmark, PiggyBank } from 'lucide-react';
+import { Wallet, TrendingUp, Coins, Clock, Info, AlertCircle, Landmark, PiggyBank, Receipt } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -25,6 +26,8 @@ export default function Dashboard() {
     isLoading 
   } = useDashboard();
 
+  const { cliTotalBrl, isLoading: cliLoading } = useCapitalLiquido();
+
   const formatExchangeDate = (dateStr: string | null) => {
     if (!dateStr) return '';
     try {
@@ -38,7 +41,7 @@ export default function Dashboard() {
   const valorExibido = temPrecoAtualizado ? totalCarteira : custoTotalCarteira;
   const labelValor = temPrecoAtualizado ? 'Total em Ativos' : 'Custo Total (sem cotação)';
 
-  if (isLoading) {
+  if (isLoading || cliLoading) {
     return <div className="flex items-center justify-center h-64"><div className="text-muted-foreground">Carregando...</div></div>;
   }
 
@@ -74,8 +77,8 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* Main summary cards - Patrimônio, Ativos, Caixa */}
-      <div className="grid gap-4 md:grid-cols-3">
+      {/* Main summary cards - Patrimônio, Ativos, Caixa, CLI */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card className="border-primary/20 bg-primary/5">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Patrimônio Total</CardTitle>
@@ -104,6 +107,28 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-xl font-bold font-mono">{formatCurrency(totalCaixaBRL)}</div>
+          </CardContent>
+        </Card>
+        <Card className="border-border">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <div className="flex items-center gap-1">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Capital Líquido Investido</CardTitle>
+              <Tooltip>
+                <TooltipTrigger>
+                  <Info className="h-3 w-3 text-muted-foreground" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="text-sm">Aportes − Proventos</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
+            <Receipt className="h-4 w-4 text-chart-5" />
+          </CardHeader>
+          <CardContent>
+            <div className={cn("text-xl font-bold font-mono", cliTotalBrl < 0 && "text-positive")}>
+              {formatCurrency(cliTotalBrl)}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">O que saiu do bolso</p>
           </CardContent>
         </Card>
       </div>
