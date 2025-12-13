@@ -4,16 +4,18 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { formatCurrency, formatPercent, formatNumber } from '@/lib/formatters';
 import { CLASSE_LABELS, ClasseAtivo, CarteiraAtual, Moeda } from '@/types/database';
-import { RefreshCw, Edit2, Info, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { RefreshCw, Edit2, Info, Loader2, AlertCircle, CheckCircle2, DollarSign } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Label } from '@/components/ui/label';
+import { format } from 'date-fns';
 
 interface UpdateResult {
   ticker: string;
@@ -29,9 +31,11 @@ export default function Carteira() {
   const { carteira, isLoading, updatePreco, refetch } = useCarteira();
   const [editingAtivo, setEditingAtivo] = useState<CarteiraAtual | null>(null);
   const [novoPreco, setNovoPreco] = useState('');
+  const [dataPreco, setDataPreco] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [isUpdatingPrices, setIsUpdatingPrices] = useState(false);
   const [updateResults, setUpdateResults] = useState<UpdateResult[]>([]);
   const [showResultsModal, setShowResultsModal] = useState(false);
+  const [isRendaFixaModal, setIsRendaFixaModal] = useState(false);
   const { toast } = useToast();
 
   const handleSavePreco = () => {
@@ -43,6 +47,20 @@ export default function Carteira() {
     });
     setEditingAtivo(null);
     setNovoPreco('');
+    setIsRendaFixaModal(false);
+  };
+
+  const openRendaFixaModal = (ativo: CarteiraAtual) => {
+    setEditingAtivo(ativo);
+    setNovoPreco(ativo.preco_atual?.toString() || '');
+    setDataPreco(format(new Date(), 'yyyy-MM-dd'));
+    setIsRendaFixaModal(true);
+  };
+
+  const openEditModal = (ativo: CarteiraAtual) => {
+    setEditingAtivo(ativo);
+    setNovoPreco(ativo.preco_atual?.toString() || '');
+    setIsRendaFixaModal(false);
   };
 
   const handleUpdatePrices = async () => {
@@ -56,14 +74,20 @@ export default function Carteira() {
       const detalhes: UpdateResult[] = data.detalhes || [];
       setUpdateResults(detalhes);
       
+      // Separar resultados: sucesso, falhas reais, e manuais
       const successCount = detalhes.filter(d => d.success).length;
-      const failCount = detalhes.filter(d => !d.success).length;
+      const manualCount = detalhes.filter(d => d.provider === 'manual').length;
+      const failCount = detalhes.filter(d => !d.success && d.provider !== 'manual').length;
       
       if (successCount > 0 && failCount === 0) {
+        const manualNote = manualCount > 0 ? ` (${manualCount} manual)` : '';
         toast({ 
           title: 'Preços atualizados!', 
-          description: `${successCount} ativo(s) atualizado(s) com sucesso.` 
+          description: `${successCount} ativo(s) atualizado(s) com sucesso.${manualNote}` 
         });
+        if (manualCount > 0) {
+          setShowResultsModal(true);
+        }
       } else if (successCount > 0 && failCount > 0) {
         toast({ 
           title: `${successCount} atualizado(s), ${failCount} falha(s)`, 
@@ -75,6 +99,12 @@ export default function Carteira() {
           title: 'Nenhum ativo atualizado', 
           description: 'Clique em "Ver detalhes" para ver os erros.',
           variant: 'destructive'
+        });
+        setShowResultsModal(true);
+      } else if (manualCount > 0 && successCount === 0 && failCount === 0) {
+        toast({ 
+          title: 'Ativos manuais', 
+          description: `${manualCount} ativo(s) requer(em) atualização manual.`
         });
         setShowResultsModal(true);
       }
@@ -94,6 +124,26 @@ export default function Carteira() {
 
   const hasValidPrice = (ativo: CarteiraAtual) => {
     return ativo.preco_atual !== null && ativo.preco_atual !== undefined && ativo.preco_atual > 0;
+  };
+
+  const isRendaFixa = (classe: string) => classe === 'renda_fixa';
+
+  const getResultStyle = (result: UpdateResult) => {
+    if (result.provider === 'manual') {
+      return "bg-muted/50 border-border";
+    }
+    return result.success 
+      ? "bg-positive/10 border-positive/20" 
+      : "bg-destructive/10 border-destructive/20";
+  };
+
+  const getResultIcon = (result: UpdateResult) => {
+    if (result.provider === 'manual') {
+      return <DollarSign className="h-5 w-5 text-muted-foreground mt-0.5" />;
+    }
+    return result.success 
+      ? <CheckCircle2 className="h-5 w-5 text-positive mt-0.5" />
+      : <AlertCircle className="h-5 w-5 text-destructive mt-0.5" />;
   };
 
   if (isLoading) {
@@ -167,6 +217,7 @@ export default function Carteira() {
                 <TableBody>
                   {ativosComPosicao.map((ativo) => {
                     const temPreco = hasValidPrice(ativo);
+                    const ehRendaFixa = isRendaFixa(ativo.classe);
                     return (
                       <TableRow key={ativo.ativo_id}>
                         <TableCell className="font-medium">{ativo.ticker}</TableCell>
@@ -186,9 +237,30 @@ export default function Carteira() {
                           {temPreco ? formatPercent(ativo.lucro_prejuizo_pct) : '—'}
                         </TableCell>
                         <TableCell>
-                          <Button variant="ghost" size="icon" onClick={() => { setEditingAtivo(ativo); setNovoPreco(ativo.preco_atual?.toString() || ''); }}>
-                            <Edit2 className="h-4 w-4" />
-                          </Button>
+                          <div className="flex items-center gap-1">
+                            {ehRendaFixa ? (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    onClick={() => openRendaFixaModal(ativo)}
+                                    className="text-xs"
+                                  >
+                                    <DollarSign className="h-3 w-3 mr-1" />
+                                    Atualizar valor
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Renda Fixa: atualização manual do valor</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            ) : (
+                              <Button variant="ghost" size="icon" onClick={() => openEditModal(ativo)}>
+                                <Edit2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
@@ -200,7 +272,8 @@ export default function Carteira() {
         </CardContent>
       </Card>
 
-      <Dialog open={!!editingAtivo} onOpenChange={() => setEditingAtivo(null)}>
+      {/* Modal para edição simples de preço (não-renda fixa) */}
+      <Dialog open={!!editingAtivo && !isRendaFixaModal} onOpenChange={() => setEditingAtivo(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Editar Preço - {editingAtivo?.ticker}</DialogTitle></DialogHeader>
           <Input type="number" step="0.01" value={novoPreco} onChange={(e) => setNovoPreco(e.target.value)} placeholder="Novo preço" />
@@ -211,6 +284,51 @@ export default function Carteira() {
         </DialogContent>
       </Dialog>
 
+      {/* Modal para Renda Fixa */}
+      <Dialog open={!!editingAtivo && isRendaFixaModal} onOpenChange={() => { setEditingAtivo(null); setIsRendaFixaModal(false); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Atualizar Valor - {editingAtivo?.ticker}</DialogTitle>
+            <DialogDescription>
+              Informe o preço unitário atual do título de Renda Fixa.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="dataPreco">Data de Referência</Label>
+              <Input 
+                id="dataPreco"
+                type="date" 
+                value={dataPreco} 
+                onChange={(e) => setDataPreco(e.target.value)} 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="precoUnitario">Preço Unitário Atual (R$)</Label>
+              <Input 
+                id="precoUnitario"
+                type="number" 
+                step="0.01" 
+                value={novoPreco} 
+                onChange={(e) => setNovoPreco(e.target.value)} 
+                placeholder="Ex: 850.50" 
+              />
+            </div>
+            {editingAtivo && novoPreco && (
+              <div className="p-3 bg-muted rounded-lg text-sm space-y-1">
+                <p><span className="text-muted-foreground">Quantidade:</span> {formatNumber(editingAtivo.quantidade_total, 4)}</p>
+                <p><span className="text-muted-foreground">Valor Atual Calculado:</span> {formatCurrency(editingAtivo.quantidade_total * parseFloat(novoPreco || '0'), editingAtivo.moeda_base as Moeda)}</p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setEditingAtivo(null); setIsRendaFixaModal(false); }}>Cancelar</Button>
+            <Button onClick={handleSavePreco}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de resultados da atualização */}
       <Dialog open={showResultsModal} onOpenChange={setShowResultsModal}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
@@ -223,15 +341,11 @@ export default function Carteira() {
                   key={idx} 
                   className={cn(
                     "flex items-start justify-between p-3 rounded-lg border",
-                    result.success ? "bg-positive/10 border-positive/20" : "bg-destructive/10 border-destructive/20"
+                    getResultStyle(result)
                   )}
                 >
                   <div className="flex items-start gap-3">
-                    {result.success ? (
-                      <CheckCircle2 className="h-5 w-5 text-positive mt-0.5" />
-                    ) : (
-                      <AlertCircle className="h-5 w-5 text-destructive mt-0.5" />
-                    )}
+                    {getResultIcon(result)}
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-medium">{result.ticker}</span>
@@ -247,7 +361,9 @@ export default function Carteira() {
                           Ticker normalizado: {result.ticker_normalizado}
                         </p>
                       )}
-                      {result.success ? (
+                      {result.provider === 'manual' ? (
+                        <p className="text-sm text-muted-foreground">{result.error || 'Atualize manualmente na tabela'}</p>
+                      ) : result.success ? (
                         <p className="text-sm text-positive">
                           Preço atualizado: {formatCurrency(result.preco || 0, 'BRL')}
                         </p>
