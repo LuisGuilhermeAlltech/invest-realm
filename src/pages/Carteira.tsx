@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useCarteira } from '@/hooks/useCarteira';
+import { useCapitalLiquido } from '@/hooks/useCapitalLiquido';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -29,6 +30,7 @@ interface UpdateResult {
 
 export default function Carteira() {
   const { carteira, isLoading, updatePreco, refetch } = useCarteira();
+  const { porAtivo: cliPorAtivo, isLoading: cliLoading } = useCapitalLiquido();
   const [editingAtivo, setEditingAtivo] = useState<CarteiraAtual | null>(null);
   const [novoPreco, setNovoPreco] = useState('');
   const [dataPreco, setDataPreco] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -146,9 +148,14 @@ export default function Carteira() {
       : <AlertCircle className="h-5 w-5 text-destructive mt-0.5" />;
   };
 
-  if (isLoading) {
+  if (isLoading || cliLoading) {
     return <div className="flex items-center justify-center h-64"><div className="text-muted-foreground">Carregando...</div></div>;
   }
+
+  // Helper to get CLI data for an asset
+  const getCliData = (ativoId: string) => {
+    return cliPorAtivo.find(c => c.ativo_id === ativoId);
+  };
 
   const ativosComPosicao = carteira.filter(a => a.quantidade_total > 0);
 
@@ -211,6 +218,18 @@ export default function Carteira() {
                     <TableHead className="text-right">Valor Atual</TableHead>
                     <TableHead className="text-right">P/L R$</TableHead>
                     <TableHead className="text-right">P/L %</TableHead>
+                    <TableHead className="text-right">
+                      <Tooltip>
+                        <TooltipTrigger className="cursor-help">CLI (BRL)</TooltipTrigger>
+                        <TooltipContent><p>Capital Líquido Investido = Aportes − Proventos</p></TooltipContent>
+                      </Tooltip>
+                    </TableHead>
+                    <TableHead className="text-right">
+                      <Tooltip>
+                        <TooltipTrigger className="cursor-help">% Recup.</TooltipTrigger>
+                        <TooltipContent><p>Proventos / Aportes</p></TooltipContent>
+                      </Tooltip>
+                    </TableHead>
                     <TableHead></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -218,6 +237,7 @@ export default function Carteira() {
                   {ativosComPosicao.map((ativo) => {
                     const temPreco = hasValidPrice(ativo);
                     const ehRendaFixa = isRendaFixa(ativo.classe);
+                    const cli = getCliData(ativo.ativo_id);
                     return (
                       <TableRow key={ativo.ativo_id}>
                         <TableCell className="font-medium">{ativo.ticker}</TableCell>
@@ -235,6 +255,12 @@ export default function Carteira() {
                         </TableCell>
                         <TableCell className={cn('text-right font-mono', temPreco && ativo.lucro_prejuizo_pct >= 0 ? 'text-positive' : temPreco && ativo.lucro_prejuizo_pct < 0 ? 'text-negative' : '')}>
                           {temPreco ? formatPercent(ativo.lucro_prejuizo_pct) : '—'}
+                        </TableCell>
+                        <TableCell className={cn('text-right font-mono', cli && cli.cli_brl < 0 && 'text-positive')}>
+                          {cli ? formatCurrency(cli.cli_brl) : '—'}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-muted-foreground">
+                          {cli && cli.pct_recuperado !== null ? formatPercent(cli.pct_recuperado) : '—'}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">
