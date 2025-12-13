@@ -4,6 +4,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,9 +17,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { TipoTransacaoCaixa, TIPO_TRANSACAO_LABELS, getRequiredFields, AccountWithBalance } from '@/hooks/useCaixa';
 import { useAtivos } from '@/hooks/useAtivos';
 import { format } from 'date-fns';
+import { Info } from 'lucide-react';
 
 interface NovaMovimentacaoModalProps {
   open: boolean;
@@ -37,7 +40,8 @@ interface NovaMovimentacaoModalProps {
   isLoading?: boolean;
 }
 
-const TIPOS: TipoTransacaoCaixa[] = ['DEPOSITO', 'PROVENTO', 'TRANSFERENCIA', 'APLICACAO', 'RESGATE', 'SAQUE'];
+// PROVENTO is excluded - managed via Proventos page
+const TIPOS: TipoTransacaoCaixa[] = ['DEPOSITO', 'TRANSFERENCIA', 'APLICACAO', 'RESGATE', 'SAQUE'];
 
 export default function NovaMovimentacaoModal({ 
   open, 
@@ -132,6 +136,9 @@ export default function NovaMovimentacaoModal({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Nova Movimentação de Caixa</DialogTitle>
+          <DialogDescription>
+            Para lançar proventos, utilize a página "Proventos".
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">

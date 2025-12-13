@@ -304,34 +304,45 @@ export default function Caixa() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredTransactions.map(t => (
-                    <TableRow key={t.id}>
-                      <TableCell>{formatDate(t.data)}</TableCell>
-                      <TableCell>
-                        <Badge variant={getTipoBadgeVariant(t.tipo)}>
-                          {TIPO_TRANSACAO_LABELS[t.tipo]}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{t.conta_origem?.nome || '—'}</TableCell>
-                      <TableCell>{t.conta_destino?.nome || '—'}</TableCell>
-                      <TableCell>{t.ativos?.ticker || '—'}</TableCell>
-                      <TableCell className="text-right">
-                        {formatCurrency(t.valor, t.moeda as Moeda)}
-                      </TableCell>
-                      <TableCell className="max-w-[200px] truncate">
-                        {t.descricao || '—'}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setDeleteTransactionId(t.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                {filteredTransactions.map(t => {
+                    const isProventoGerado = t.tipo === 'PROVENTO' && t.descricao === 'Gerado via Proventos';
+                    return (
+                      <TableRow key={t.id} className={isProventoGerado ? 'bg-muted/30' : ''}>
+                        <TableCell>{formatDate(t.data)}</TableCell>
+                        <TableCell>
+                          <Badge variant={getTipoBadgeVariant(t.tipo)}>
+                            {TIPO_TRANSACAO_LABELS[t.tipo]}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{t.conta_origem?.nome || '—'}</TableCell>
+                        <TableCell>{t.conta_destino?.nome || '—'}</TableCell>
+                        <TableCell>{t.ativos?.ticker || '—'}</TableCell>
+                        <TableCell className="text-right">
+                          {formatCurrency(t.valor, t.moeda as Moeda)}
+                        </TableCell>
+                        <TableCell className="max-w-[200px] truncate">
+                          {isProventoGerado ? (
+                            <span className="text-muted-foreground italic">Gerado via Proventos</span>
+                          ) : (
+                            t.descricao || '—'
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {isProventoGerado ? (
+                            <span className="text-xs text-muted-foreground">Gerenciar em Proventos</span>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setDeleteTransactionId(t.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
