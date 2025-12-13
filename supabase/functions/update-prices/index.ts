@@ -8,9 +8,146 @@ const corsHeaders = {
 
 interface AtivoResult {
   ticker: string;
+  ticker_normalizado: string;
+  classe: string;
+  provider: string;
   success: boolean;
   preco?: number;
   error?: string;
+}
+
+// Yahoo Finance API (free, no auth required)
+async function fetchYahooPrice(ticker: string): Promise<{ price: number | null; error?: string }> {
+  try {
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1d`;
+    console.log(`[Yahoo] Fetching: ${url}`);
+    
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
+    
+    if (!response.ok) {
+      const text = await response.text();
+      console.error(`[Yahoo] HTTP ${response.status}: ${text.substring(0, 200)}`);
+      return { price: null, error: `Yahoo HTTP ${response.status}` };
+    }
+    
+    const data = await response.json();
+    const result = data?.chart?.result?.[0];
+    
+    if (!result) {
+      console.error(`[Yahoo] No result for ${ticker}`);
+      return { price: null, error: 'Ticker não encontrado no Yahoo Finance' };
+    }
+    
+    // Get the most recent price
+    const price = result.meta?.regularMarketPrice || 
+                  result.indicators?.quote?.[0]?.close?.slice(-1)?.[0];
+    
+    if (price && price > 0) {
+      console.log(`[Yahoo] SUCCESS: ${ticker} = ${price}`);
+      return { price };
+    }
+    
+    return { price: null, error: 'Preço não disponível' };
+  } catch (error) {
+    console.error(`[Yahoo] Error for ${ticker}:`, error);
+    return { price: null, error: `Erro Yahoo: ${error instanceof Error ? error.message : 'desconhecido'}` };
+  }
+}
+
+// CoinGecko API (free, limited rate)
+async function fetchCoinGeckoPrice(coinId: string, currency: string): Promise<{ price: number | null; error?: string }> {
+  try {
+    const url = `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=${currency}`;
+    console.log(`[CoinGecko] Fetching: ${url}`);
+    
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      return { price: null, error: `CoinGecko HTTP ${response.status}` };
+    }
+    
+    const data = await response.json();
+    const price = data?.[coinId]?.[currency];
+    
+    if (price && price > 0) {
+      console.log(`[CoinGecko] SUCCESS: ${coinId} = ${price} ${currency.toUpperCase()}`);
+      return { price };
+    }
+    
+    return { price: null, error: `Crypto "${coinId}" não encontrada` };
+  } catch (error) {
+    console.error(`[CoinGecko] Error:`, error);
+    return { price: null, error: `Erro CoinGecko: ${error instanceof Error ? error.message : 'desconhecido'}` };
+  }
+}
+
+// Normalize ticker based on asset class
+function normalizeTicker(ticker: string, classe: string): { normalized: string; provider: string } {
+  const cleanTicker = ticker.trim().toUpperCase();
+  
+  switch (classe) {
+    case 'acoes_br':
+    case 'fii':
+      // Brazilian assets need .SA suffix for Yahoo
+      const brTicker = cleanTicker.replace('.SA', '');
+      return { normalized: `${brTicker}.SA`, provider: 'yahoo' };
+    
+    case 'acoes_eua':
+      // US assets use ticker as-is for Yahoo
+      return { normalized: cleanTicker, provider: 'yahoo' };
+    
+    case 'cripto':
+      return { normalized: cleanTicker, provider: 'coingecko' };
+    
+    case 'renda_fixa':
+      return { normalized: cleanTicker, provider: 'manual' };
+    
+    default:
+      return { normalized: cleanTicker, provider: 'unknown' };
+  }
+}
+
+// Map crypto tickers to CoinGecko IDs
+function getCoinGeckoId(ticker: string): string {
+  const map: Record<string, string> = {
+    'BTC': 'bitcoin',
+    'ETH': 'ethereum',
+    'SOL': 'solana',
+    'ADA': 'cardano',
+    'DOT': 'polkadot',
+    'LINK': 'chainlink',
+    'MATIC': 'matic-network',
+    'AVAX': 'avalanche-2',
+    'XRP': 'ripple',
+    'DOGE': 'dogecoin',
+    'SHIB': 'shiba-inu',
+    'LTC': 'litecoin',
+    'BNB': 'binancecoin',
+    'USDT': 'tether',
+    'USDC': 'usd-coin',
+  };
+  return map[ticker.toUpperCase()] || ticker.toLowerCase();
+}
+
+// Process assets in batches to avoid rate limiting
+async function processBatch<T>(
+  items: T[],
+  batchSize: number,
+  delayMs: number,
+  processor: (item: T) => Promise<void>
+): Promise<void> {
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    await Promise.all(batch.map(processor));
+    
+    if (i + batchSize < items.length) {
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
 }
 
 serve(async (req) => {
@@ -48,7 +185,6 @@ serve(async (req) => {
 
     console.log(`User authenticated: ${user.id}`);
 
-    // Fetch all active assets for the user
     const { data: ativos, error: ativosError } = await supabase
       .from('ativos')
       .select('id, ticker, classe, moeda_base')
@@ -60,13 +196,14 @@ serve(async (req) => {
       throw ativosError;
     }
 
-    console.log(`Found ${ativos?.length || 0} active assets:`, ativos?.map(a => a.ticker));
+    console.log(`Found ${ativos?.length || 0} active assets:`, ativos?.map(a => `${a.ticker}(${a.classe})`));
 
     if (!ativos || ativos.length === 0) {
       return new Response(JSON.stringify({ 
         message: 'Nenhum ativo encontrado',
         atualizados: 0,
-        falhas: [] 
+        falhas: [],
+        detalhes: []
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -74,193 +211,113 @@ serve(async (req) => {
 
     const results: AtivoResult[] = [];
 
-    for (const ativo of ativos) {
-      try {
-        let preco: number | null = null;
-        let fonte = '';
-
-        if (ativo.classe === 'acoes_br' || ativo.classe === 'fii') {
-          // Use BRAPI for Brazilian stocks and FIIs
-          // Remove .SA suffix if present, BRAPI uses just the ticker
-          const ticker = ativo.ticker.replace('.SA', '').toUpperCase();
-          const brapiUrl = `https://brapi.dev/api/quote/${ticker}`;
-          console.log(`Fetching BRAPI: ${brapiUrl}`);
-          
-          const brapiResponse = await fetch(brapiUrl);
-          const brapiText = await brapiResponse.text();
-          console.log(`BRAPI response status: ${brapiResponse.status}, body: ${brapiText.substring(0, 500)}`);
-          
-          if (brapiResponse.ok) {
-            try {
-              const brapiData = JSON.parse(brapiText);
-              if (brapiData.results && brapiData.results.length > 0 && brapiData.results[0].regularMarketPrice) {
-                preco = brapiData.results[0].regularMarketPrice;
-                fonte = 'brapi';
-                console.log(`BRAPI SUCCESS: ${ticker} = R$ ${preco}`);
-              } else {
-                console.log(`BRAPI: No price data in response for ${ticker}`, brapiData);
-                results.push({
-                  ticker: ativo.ticker,
-                  success: false,
-                  error: `Ticker "${ticker}" não encontrado na BRAPI. Verifique se o código está correto.`,
-                });
-                continue;
-              }
-            } catch (parseError) {
-              console.error(`BRAPI parse error for ${ticker}:`, parseError);
-              results.push({
-                ticker: ativo.ticker,
-                success: false,
-                error: `Erro ao processar resposta da BRAPI`,
-              });
-              continue;
-            }
-          } else {
-            console.error(`BRAPI HTTP error for ${ticker}: ${brapiResponse.status} - ${brapiText}`);
-            results.push({
-              ticker: ativo.ticker,
-              success: false,
-              error: `Erro HTTP ${brapiResponse.status} da BRAPI`,
-            });
-            continue;
-          }
-        } else if (ativo.classe === 'cripto') {
-          // Use CoinGecko for crypto - map common tickers
-          const tickerMap: Record<string, string> = {
-            'BTC': 'bitcoin',
-            'ETH': 'ethereum',
-            'SOL': 'solana',
-            'ADA': 'cardano',
-            'DOT': 'polkadot',
-            'LINK': 'chainlink',
-            'MATIC': 'matic-network',
-            'AVAX': 'avalanche-2',
-            'XRP': 'ripple',
-            'DOGE': 'dogecoin',
-            'SHIB': 'shiba-inu',
-            'LTC': 'litecoin',
-          };
-          
-          const coinId = tickerMap[ativo.ticker.toUpperCase()] || ativo.ticker.toLowerCase();
-          const currency = ativo.moeda_base === 'USD' ? 'usd' : 'brl';
-          const cgUrl = `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=${currency}`;
-          console.log(`Fetching CoinGecko: ${cgUrl}`);
-          
-          const cgResponse = await fetch(cgUrl);
-          const cgText = await cgResponse.text();
-          console.log(`CoinGecko response status: ${cgResponse.status}, body: ${cgText}`);
-          
-          if (cgResponse.ok) {
-            try {
-              const cgData = JSON.parse(cgText);
-              if (cgData[coinId] && cgData[coinId][currency]) {
-                preco = cgData[coinId][currency];
-                fonte = 'coingecko';
-                console.log(`CoinGecko SUCCESS: ${ativo.ticker} = ${preco}`);
-              } else {
-                results.push({
-                  ticker: ativo.ticker,
-                  success: false,
-                  error: `Crypto "${coinId}" não encontrada no CoinGecko`,
-                });
-                continue;
-              }
-            } catch (parseError) {
-              results.push({
-                ticker: ativo.ticker,
-                success: false,
-                error: `Erro ao processar resposta do CoinGecko`,
-              });
-              continue;
-            }
-          } else {
-            results.push({
-              ticker: ativo.ticker,
-              success: false,
-              error: `Erro HTTP ${cgResponse.status} do CoinGecko`,
-            });
-            continue;
-          }
-        } else if (ativo.classe === 'acoes_eua') {
-          results.push({
-            ticker: ativo.ticker,
-            success: false,
-            error: 'Ações EUA: cotação automática em breve',
-          });
-          continue;
-        } else if (ativo.classe === 'renda_fixa') {
-          results.push({
-            ticker: ativo.ticker,
-            success: false,
-            error: 'Renda Fixa: atualize o preço manualmente',
-          });
-          continue;
-        }
-
-        if (preco !== null && preco > 0) {
-          console.log(`Saving price for ${ativo.ticker}: ${preco}`);
-          
-          // Upsert price
-          const { data: existing } = await supabase
-            .from('precos_ativos')
-            .select('id')
-            .eq('user_id', user.id)
-            .eq('ativo_id', ativo.id)
-            .maybeSingle();
-
-          if (existing) {
-            const { error: updateError } = await supabase
-              .from('precos_ativos')
-              .update({
-                preco_atual: preco,
-                moeda: ativo.moeda_base,
-                atualizado_em: new Date().toISOString(),
-                fonte,
-              })
-              .eq('id', existing.id);
-            
-            if (updateError) {
-              console.error(`Error updating price for ${ativo.ticker}:`, updateError);
-              results.push({
-                ticker: ativo.ticker,
-                success: false,
-                error: `Erro ao salvar: ${updateError.message}`,
-              });
-              continue;
-            }
-          } else {
-            const { error: insertError } = await supabase.from('precos_ativos').insert({
-              user_id: user.id,
-              ativo_id: ativo.id,
-              preco_atual: preco,
-              moeda: ativo.moeda_base,
-              atualizado_em: new Date().toISOString(),
-              fonte,
-            });
-            
-            if (insertError) {
-              console.error(`Error inserting price for ${ativo.ticker}:`, insertError);
-              results.push({
-                ticker: ativo.ticker,
-                success: false,
-                error: `Erro ao salvar: ${insertError.message}`,
-              });
-              continue;
-            }
-          }
-
-          results.push({ ticker: ativo.ticker, success: true, preco });
-          console.log(`Successfully saved price for ${ativo.ticker}`);
-        }
-      } catch (error) {
-        console.error(`Error processing ${ativo.ticker}:`, error);
+    // Process assets
+    const processAtivo = async (ativo: typeof ativos[0]) => {
+      const { normalized, provider } = normalizeTicker(ativo.ticker, ativo.classe);
+      
+      console.log(`Processing: ${ativo.ticker} → ${normalized} (${provider})`);
+      
+      // Handle manual-only assets
+      if (provider === 'manual') {
         results.push({
           ticker: ativo.ticker,
+          ticker_normalizado: normalized,
+          classe: ativo.classe,
+          provider,
           success: false,
-          error: error instanceof Error ? error.message : 'Erro desconhecido',
+          error: 'Renda Fixa: atualize o preço manualmente na tabela',
+        });
+        return;
+      }
+
+      let preco: number | null = null;
+      let error: string | undefined;
+
+      if (provider === 'yahoo') {
+        const result = await fetchYahooPrice(normalized);
+        preco = result.price;
+        error = result.error;
+      } else if (provider === 'coingecko') {
+        const coinId = getCoinGeckoId(ativo.ticker);
+        const currency = ativo.moeda_base === 'USD' ? 'usd' : 'brl';
+        const result = await fetchCoinGeckoPrice(coinId, currency);
+        preco = result.price;
+        error = result.error;
+      }
+
+      if (preco !== null && preco > 0) {
+        // Upsert price
+        const { data: existing } = await supabase
+          .from('precos_ativos')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('ativo_id', ativo.id)
+          .maybeSingle();
+
+        const priceData = {
+          preco_atual: preco,
+          moeda: ativo.moeda_base,
+          atualizado_em: new Date().toISOString(),
+          fonte: provider,
+        };
+
+        let saveError: string | null = null;
+
+        if (existing) {
+          const { error: updateError } = await supabase
+            .from('precos_ativos')
+            .update(priceData)
+            .eq('id', existing.id);
+          
+          if (updateError) {
+            saveError = updateError.message;
+          }
+        } else {
+          const { error: insertError } = await supabase.from('precos_ativos').insert({
+            user_id: user.id,
+            ativo_id: ativo.id,
+            ...priceData,
+          });
+          
+          if (insertError) {
+            saveError = insertError.message;
+          }
+        }
+
+        if (saveError) {
+          results.push({
+            ticker: ativo.ticker,
+            ticker_normalizado: normalized,
+            classe: ativo.classe,
+            provider,
+            success: false,
+            error: `Erro ao salvar: ${saveError}`,
+          });
+        } else {
+          results.push({
+            ticker: ativo.ticker,
+            ticker_normalizado: normalized,
+            classe: ativo.classe,
+            provider,
+            success: true,
+            preco,
+          });
+          console.log(`✓ Saved: ${ativo.ticker} = ${preco}`);
+        }
+      } else {
+        results.push({
+          ticker: ativo.ticker,
+          ticker_normalizado: normalized,
+          classe: ativo.classe,
+          provider,
+          success: false,
+          error: error || 'Preço não disponível',
         });
       }
-    }
+    };
+
+    // Process in batches of 5 with 500ms delay between batches
+    await processBatch(ativos, 5, 500, processAtivo);
 
     const atualizados = results.filter(r => r.success).length;
     const falhas = results.filter(r => !r.success);
@@ -269,7 +326,9 @@ serve(async (req) => {
     console.log('Results:', JSON.stringify(results, null, 2));
 
     return new Response(JSON.stringify({
-      message: atualizados > 0 ? 'Preços atualizados' : 'Nenhum preço atualizado',
+      message: atualizados > 0 
+        ? `${atualizados} preço(s) atualizado(s)` 
+        : 'Nenhum preço atualizado',
       atualizados,
       falhas,
       detalhes: results,
@@ -279,7 +338,8 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in update-prices:', error);
     return new Response(JSON.stringify({ 
-      error: error instanceof Error ? error.message : 'Erro interno' 
+      error: error instanceof Error ? error.message : 'Erro interno',
+      detalhes: []
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

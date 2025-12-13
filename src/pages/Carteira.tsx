@@ -8,16 +8,30 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { formatCurrency, formatPercent, formatNumber } from '@/lib/formatters';
 import { CLASSE_LABELS, ClasseAtivo, CarteiraAtual, Moeda } from '@/types/database';
-import { RefreshCw, Edit2, Info, Loader2 } from 'lucide-react';
+import { RefreshCw, Edit2, Info, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
+
+interface UpdateResult {
+  ticker: string;
+  ticker_normalizado: string;
+  classe: string;
+  provider: string;
+  success: boolean;
+  preco?: number;
+  error?: string;
+}
 
 export default function Carteira() {
   const { carteira, isLoading, updatePreco, refetch } = useCarteira();
   const [editingAtivo, setEditingAtivo] = useState<CarteiraAtual | null>(null);
   const [novoPreco, setNovoPreco] = useState('');
   const [isUpdatingPrices, setIsUpdatingPrices] = useState(false);
+  const [updateResults, setUpdateResults] = useState<UpdateResult[]>([]);
+  const [showResultsModal, setShowResultsModal] = useState(false);
   const { toast } = useToast();
 
   const handleSavePreco = () => {
@@ -33,25 +47,36 @@ export default function Carteira() {
 
   const handleUpdatePrices = async () => {
     setIsUpdatingPrices(true);
+    setUpdateResults([]);
     try {
       const { data, error } = await supabase.functions.invoke('update-prices');
       
       if (error) throw error;
       
-      if (data.atualizados > 0) {
+      const detalhes: UpdateResult[] = data.detalhes || [];
+      setUpdateResults(detalhes);
+      
+      const successCount = detalhes.filter(d => d.success).length;
+      const failCount = detalhes.filter(d => !d.success).length;
+      
+      if (successCount > 0 && failCount === 0) {
         toast({ 
           title: 'Preços atualizados!', 
-          description: `${data.atualizados} ativo(s) atualizado(s).` 
+          description: `${successCount} ativo(s) atualizado(s) com sucesso.` 
         });
-      }
-      
-      if (data.falhas && data.falhas.length > 0) {
-        const falhasTickers = data.falhas.map((f: any) => f.ticker).join(', ');
+      } else if (successCount > 0 && failCount > 0) {
         toast({ 
-          title: 'Alguns ativos não foram atualizados', 
-          description: falhasTickers,
+          title: `${successCount} atualizado(s), ${failCount} falha(s)`, 
+          description: 'Clique em "Ver detalhes" para mais informações.',
+        });
+        setShowResultsModal(true);
+      } else if (failCount > 0) {
+        toast({ 
+          title: 'Nenhum ativo atualizado', 
+          description: 'Clique em "Ver detalhes" para ver os erros.',
           variant: 'destructive'
         });
+        setShowResultsModal(true);
       }
       
       refetch();
@@ -91,19 +116,31 @@ export default function Carteira() {
             </TooltipContent>
           </Tooltip>
         </div>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={handleUpdatePrices}
-          disabled={isUpdatingPrices}
-        >
-          {isUpdatingPrices ? (
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-          ) : (
-            <RefreshCw className="h-4 w-4 mr-2" />
+        <div className="flex items-center gap-2">
+          {updateResults.length > 0 && (
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => setShowResultsModal(true)}
+              className="text-muted-foreground"
+            >
+              Ver detalhes
+            </Button>
           )}
-          Atualizar Preços
-        </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleUpdatePrices}
+            disabled={isUpdatingPrices}
+          >
+            {isUpdatingPrices ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4 mr-2" />
+            )}
+            Atualizar Preços
+          </Button>
+        </div>
       </div>
 
       <Card className="border-border">
@@ -170,6 +207,61 @@ export default function Carteira() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingAtivo(null)}>Cancelar</Button>
             <Button onClick={handleSavePreco}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showResultsModal} onOpenChange={setShowResultsModal}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Resultado da Atualização de Preços</DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="max-h-96">
+            <div className="space-y-2">
+              {updateResults.map((result, idx) => (
+                <div 
+                  key={idx} 
+                  className={cn(
+                    "flex items-start justify-between p-3 rounded-lg border",
+                    result.success ? "bg-positive/10 border-positive/20" : "bg-destructive/10 border-destructive/20"
+                  )}
+                >
+                  <div className="flex items-start gap-3">
+                    {result.success ? (
+                      <CheckCircle2 className="h-5 w-5 text-positive mt-0.5" />
+                    ) : (
+                      <AlertCircle className="h-5 w-5 text-destructive mt-0.5" />
+                    )}
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{result.ticker}</span>
+                        <Badge variant="outline" className="text-xs">
+                          {CLASSE_LABELS[result.classe as ClasseAtivo] || result.classe}
+                        </Badge>
+                        <Badge variant="secondary" className="text-xs">
+                          {result.provider}
+                        </Badge>
+                      </div>
+                      {result.ticker !== result.ticker_normalizado && (
+                        <p className="text-xs text-muted-foreground">
+                          Ticker normalizado: {result.ticker_normalizado}
+                        </p>
+                      )}
+                      {result.success ? (
+                        <p className="text-sm text-positive">
+                          Preço atualizado: {formatCurrency(result.preco || 0, 'BRL')}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-destructive">{result.error}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+          <DialogFooter>
+            <Button onClick={() => setShowResultsModal(false)}>Fechar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
