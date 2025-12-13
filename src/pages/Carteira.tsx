@@ -194,37 +194,44 @@ export default function Carteira() {
   // Para exibição consolidada, mostramos custo total em BRL
   const resumoFiltro = useMemo(() => {
     if (ativosFiltrados.length === 0) {
-      return { custoTotalBrl: 0, custoTotalUsd: 0, hasUsd: false, hasBrl: false };
+      return { custoTotalBrl: 0, custoTotalUsd: 0, valorAtualUsd: 0, valorAtualBrl: 0, hasUsd: false, hasBrl: false };
     }
 
     let custoTotalBrl = 0;
     let custoTotalUsd = 0;
+    let valorAtualBrl = 0;
+    let valorAtualUsd = 0;
     let qtdBrl = 0;
     let qtdUsd = 0;
 
     ativosFiltrados.forEach(a => {
+      const temPreco = a.preco_atual !== null && a.preco_atual !== undefined && a.preco_atual > 0;
       if (a.moeda_base === 'USD') {
-        // Cálculos em USD para ativos USD
+        // Cálculos em USD para ativos USD: custo_total_usd = Σ(qtd*pm_usd)
         custoTotalUsd += a.custo_total;
         qtdUsd += a.quantidade_total;
+        if (temPreco) valorAtualUsd += a.valor_atual;
       } else {
         // Cálculos em BRL para ativos BRL
         custoTotalBrl += a.custo_total;
         qtdBrl += a.quantidade_total;
+        if (temPreco) valorAtualBrl += a.valor_atual;
       }
     });
 
-    // PM calculado separadamente por moeda: custo_total / quantidade_total
+    // PM calculado separadamente por moeda: pm_ponderado = custo_total / qtd_total
     const pmBrl = qtdBrl > 0 ? custoTotalBrl / qtdBrl : null;
     const pmUsd = qtdUsd > 0 ? custoTotalUsd / qtdUsd : null;
 
-    // Custo total consolidado em BRL para exibição
+    // Custo total consolidado em BRL para exibição (conversão só na exibição)
     const custoConsolidadoBrl = custoTotalBrl + (custoTotalUsd * usdBrl);
 
     return { 
       custoConsolidadoBrl,
       custoTotalBrl, 
-      custoTotalUsd, 
+      custoTotalUsd,
+      valorAtualBrl,
+      valorAtualUsd,
       pmBrl,
       pmUsd,
       hasUsd: qtdUsd > 0, 
@@ -313,14 +320,45 @@ export default function Carteira() {
               Categoria: <span className="text-foreground font-medium">{filtroClasse === 'todas' ? 'Todas' : CLASSE_LABELS[filtroClasse as ClasseAtivo]}</span>
             </span>
             <span className="text-muted-foreground">|</span>
-            <span className="text-muted-foreground">
-              Custo Total: <span className="text-foreground font-medium">{formatCurrency(resumoFiltro.custoConsolidadoBrl)}</span>
-            </span>
+            {resumoFiltro.hasUsd && resumoFiltro.hasBrl ? (
+              // Misto: mostra consolidado
+              <span className="text-muted-foreground">
+                Custo Total: <span className="text-foreground font-medium">{formatCurrency(resumoFiltro.custoConsolidadoBrl)}</span>
+              </span>
+            ) : resumoFiltro.hasUsd ? (
+              // Só USD: mostra ambos para auditoria
+              <>
+                <span className="text-muted-foreground">
+                  Custo (USD): <span className="text-foreground font-medium whitespace-nowrap">{formatCurrency(resumoFiltro.custoTotalUsd, 'USD')}</span>
+                </span>
+                <span className="text-muted-foreground">|</span>
+                <span className="text-muted-foreground">
+                  Custo (BRL): <span className="text-foreground font-medium whitespace-nowrap">{formatCurrency(resumoFiltro.custoTotalUsd * usdBrl)}</span>
+                </span>
+                {resumoFiltro.valorAtualUsd > 0 && (
+                  <>
+                    <span className="text-muted-foreground">|</span>
+                    <span className="text-muted-foreground">
+                      Valor Atual (USD): <span className="text-foreground font-medium whitespace-nowrap">{formatCurrency(resumoFiltro.valorAtualUsd, 'USD')}</span>
+                    </span>
+                    <span className="text-muted-foreground">|</span>
+                    <span className="text-muted-foreground">
+                      Valor Atual (BRL): <span className="text-foreground font-medium whitespace-nowrap">{formatCurrency(resumoFiltro.valorAtualUsd * usdBrl)}</span>
+                    </span>
+                  </>
+                )}
+              </>
+            ) : (
+              // Só BRL
+              <span className="text-muted-foreground">
+                Custo Total: <span className="text-foreground font-medium whitespace-nowrap">{formatCurrency(resumoFiltro.custoTotalBrl)}</span>
+              </span>
+            )}
             {resumoFiltro.hasBrl && (
               <>
                 <span className="text-muted-foreground">|</span>
                 <span className="text-muted-foreground">
-                  PM (BRL): <span className="text-foreground font-medium">{formatCurrency(resumoFiltro.pmBrl ?? 0)}</span>
+                  PM (BRL): <span className="text-foreground font-medium whitespace-nowrap">{formatCurrency(resumoFiltro.pmBrl ?? 0)}</span>
                 </span>
               </>
             )}
@@ -328,7 +366,7 @@ export default function Carteira() {
               <>
                 <span className="text-muted-foreground">|</span>
                 <span className="text-muted-foreground">
-                  PM (USD): <span className="text-foreground font-medium">{formatCurrency(resumoFiltro.pmUsd ?? 0, 'USD')}</span>
+                  PM (USD): <span className="text-foreground font-medium whitespace-nowrap">{formatCurrency(resumoFiltro.pmUsd ?? 0, 'USD')}</span>
                 </span>
               </>
             )}
@@ -347,18 +385,23 @@ export default function Carteira() {
                     <TableHead>Ticker</TableHead>
                     <TableHead>Classe</TableHead>
                     <TableHead className="text-right">Qtd</TableHead>
-                    <TableHead className="text-right">PM</TableHead>
-                    <TableHead className="text-right">Preço Atual</TableHead>
-                    <TableHead className="text-right">Valor Atual</TableHead>
-                    <TableHead className="text-right">P/L R$</TableHead>
-                    <TableHead className="text-right">P/L %</TableHead>
-                    <TableHead className="text-right">
+                    <TableHead className="text-right whitespace-nowrap">PM</TableHead>
+                    <TableHead className="text-right whitespace-nowrap">Preço Atual</TableHead>
+                    <TableHead className="text-right whitespace-nowrap">Valor Atual</TableHead>
+                    <TableHead className="text-right whitespace-nowrap">
+                      <Tooltip>
+                        <TooltipTrigger className="cursor-help">P/L</TooltipTrigger>
+                        <TooltipContent><p>Lucro/Prejuízo na moeda original do ativo</p></TooltipContent>
+                      </Tooltip>
+                    </TableHead>
+                    <TableHead className="text-right whitespace-nowrap">P/L %</TableHead>
+                    <TableHead className="text-right whitespace-nowrap">
                       <Tooltip>
                         <TooltipTrigger className="cursor-help">CLI (BRL)</TooltipTrigger>
                         <TooltipContent><p>Capital Líquido Investido = Aportes − Proventos</p></TooltipContent>
                       </Tooltip>
                     </TableHead>
-                    <TableHead className="text-right">
+                    <TableHead className="text-right whitespace-nowrap">
                       <Tooltip>
                         <TooltipTrigger className="cursor-help">% Recup.</TooltipTrigger>
                         <TooltipContent><p>Proventos / Aportes</p></TooltipContent>
@@ -377,7 +420,7 @@ export default function Carteira() {
                         <TableCell className="font-medium">{ativo.ticker}</TableCell>
                         <TableCell className="text-muted-foreground">{CLASSE_LABELS[ativo.classe as ClasseAtivo]}</TableCell>
                         <TableCell className="text-right font-mono">{formatNumber(ativo.quantidade_total, 4)}</TableCell>
-                        <TableCell className="text-right font-mono">{formatCurrency(ativo.preco_medio, ativo.moeda_base as Moeda)}</TableCell>
+                        <TableCell className="text-right font-mono whitespace-nowrap">{formatCurrency(ativo.preco_medio, ativo.moeda_base as Moeda)}</TableCell>
                         <TableCell className="text-right font-mono">
                           {temPreco ? formatCurrency(ativo.preco_atual, ativo.moeda_base as Moeda) : '—'}
                         </TableCell>
