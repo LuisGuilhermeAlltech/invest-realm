@@ -17,7 +17,8 @@ export function useProventos() {
         .select(`
           *,
           ativos (ticker, nome, classe),
-          plataformas (nome)
+          plataformas (nome),
+          conta_destino:accounts!proventos_conta_destino_id_fkey(id, nome, moeda)
         `)
         .eq('user_id', user!.id)
         .order('data', { ascending: false });
@@ -36,6 +37,7 @@ export function useProventos() {
       tipo: TipoProvento;
       valor: number;
       moeda: Moeda;
+      conta_destino_id?: string;
       observacao?: string;
     }) => {
       const { error } = await supabase.from('proventos').insert({
@@ -47,10 +49,41 @@ export function useProventos() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['proventos'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['cash_transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['ativos'] });
       toast({ title: 'Provento criado com sucesso!' });
     },
     onError: (error: Error) => {
       toast({ title: 'Erro ao criar provento', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, ...data }: {
+      id: string;
+      data?: string;
+      ativo_id?: string;
+      plataforma_id?: string;
+      tipo?: TipoProvento;
+      valor?: number;
+      moeda?: Moeda;
+      conta_destino_id?: string;
+      observacao?: string;
+    }) => {
+      const { error } = await supabase.from('proventos').update(data).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['proventos'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['cash_transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['ativos'] });
+      toast({ title: 'Provento atualizado com sucesso!' });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Erro ao atualizar provento', description: error.message, variant: 'destructive' });
     },
   });
 
@@ -62,6 +95,8 @@ export function useProventos() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['proventos'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['cash_transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
       toast({ title: 'Provento excluído com sucesso!' });
     },
     onError: (error: Error) => {
@@ -73,6 +108,7 @@ export function useProventos() {
     proventos: query.data ?? [],
     isLoading: query.isLoading,
     createProvento: createMutation.mutate,
+    updateProvento: updateMutation.mutate,
     deleteProvento: deleteMutation.mutate,
   };
 }

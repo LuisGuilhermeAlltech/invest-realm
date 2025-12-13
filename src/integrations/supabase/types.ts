@@ -332,6 +332,8 @@ export type Database = {
       proventos: {
         Row: {
           ativo_id: string
+          cash_transaction_id: string | null
+          conta_destino_id: string | null
           created_at: string | null
           data: string
           id: string
@@ -344,6 +346,8 @@ export type Database = {
         }
         Insert: {
           ativo_id: string
+          cash_transaction_id?: string | null
+          conta_destino_id?: string | null
           created_at?: string | null
           data: string
           id?: string
@@ -356,6 +360,8 @@ export type Database = {
         }
         Update: {
           ativo_id?: string
+          cash_transaction_id?: string | null
+          conta_destino_id?: string | null
           created_at?: string | null
           data?: string
           id?: string
@@ -372,6 +378,27 @@ export type Database = {
             columns: ["ativo_id"]
             isOneToOne: false
             referencedRelation: "ativos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proventos_cash_transaction_id_fkey"
+            columns: ["cash_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "cash_transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proventos_conta_destino_id_fkey"
+            columns: ["conta_destino_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proventos_conta_destino_id_fkey"
+            columns: ["conta_destino_id"]
+            isOneToOne: false
+            referencedRelation: "vw_saldo_contas"
             referencedColumns: ["id"]
           },
           {
