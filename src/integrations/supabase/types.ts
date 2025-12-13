@@ -14,11 +14,43 @@ export type Database = {
   }
   public: {
     Tables: {
+      accounts: {
+        Row: {
+          ativo: boolean | null
+          created_at: string | null
+          id: string
+          moeda: string
+          nome: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          created_at?: string | null
+          id?: string
+          moeda: string
+          nome: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          ativo?: boolean | null
+          created_at?: string | null
+          id?: string
+          moeda?: string
+          nome?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       ativos: {
         Row: {
           ativo: boolean | null
           classe: Database["public"]["Enums"]["classe_ativo"]
           created_at: string | null
+          data_ultima_atualizacao_proventos: string | null
+          data_ultimo_provento: string | null
           id: string
           moeda_base: Database["public"]["Enums"]["moeda"]
           nome: string | null
@@ -30,6 +62,8 @@ export type Database = {
           ativo?: boolean | null
           classe: Database["public"]["Enums"]["classe_ativo"]
           created_at?: string | null
+          data_ultima_atualizacao_proventos?: string | null
+          data_ultimo_provento?: string | null
           id?: string
           moeda_base: Database["public"]["Enums"]["moeda"]
           nome?: string | null
@@ -41,6 +75,8 @@ export type Database = {
           ativo?: boolean | null
           classe?: Database["public"]["Enums"]["classe_ativo"]
           created_at?: string | null
+          data_ultima_atualizacao_proventos?: string | null
+          data_ultimo_provento?: string | null
           id?: string
           moeda_base?: Database["public"]["Enums"]["moeda"]
           nome?: string | null
@@ -49,6 +85,97 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      cash_transactions: {
+        Row: {
+          ativo_id: string | null
+          conta_destino_id: string | null
+          conta_origem_id: string | null
+          created_at: string | null
+          data: string
+          descricao: string | null
+          id: string
+          moeda: string
+          movimentacao_id: string | null
+          tipo: Database["public"]["Enums"]["tipo_transacao_caixa"]
+          updated_at: string | null
+          user_id: string
+          valor: number
+        }
+        Insert: {
+          ativo_id?: string | null
+          conta_destino_id?: string | null
+          conta_origem_id?: string | null
+          created_at?: string | null
+          data: string
+          descricao?: string | null
+          id?: string
+          moeda: string
+          movimentacao_id?: string | null
+          tipo: Database["public"]["Enums"]["tipo_transacao_caixa"]
+          updated_at?: string | null
+          user_id: string
+          valor: number
+        }
+        Update: {
+          ativo_id?: string | null
+          conta_destino_id?: string | null
+          conta_origem_id?: string | null
+          created_at?: string | null
+          data?: string
+          descricao?: string | null
+          id?: string
+          moeda?: string
+          movimentacao_id?: string | null
+          tipo?: Database["public"]["Enums"]["tipo_transacao_caixa"]
+          updated_at?: string | null
+          user_id?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cash_transactions_ativo_id_fkey"
+            columns: ["ativo_id"]
+            isOneToOne: false
+            referencedRelation: "ativos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cash_transactions_conta_destino_id_fkey"
+            columns: ["conta_destino_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cash_transactions_conta_destino_id_fkey"
+            columns: ["conta_destino_id"]
+            isOneToOne: false
+            referencedRelation: "vw_saldo_contas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cash_transactions_conta_origem_id_fkey"
+            columns: ["conta_origem_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cash_transactions_conta_origem_id_fkey"
+            columns: ["conta_origem_id"]
+            isOneToOne: false
+            referencedRelation: "vw_saldo_contas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cash_transactions_movimentacao_id_fkey"
+            columns: ["movimentacao_id"]
+            isOneToOne: false
+            referencedRelation: "movimentacoes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       metas_alocacao: {
         Row: {
@@ -329,6 +456,33 @@ export type Database = {
         }
         Relationships: []
       }
+      vw_saldo_contas: {
+        Row: {
+          ativo: boolean | null
+          id: string | null
+          moeda: string | null
+          nome: string | null
+          saldo: number | null
+          user_id: string | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          id?: string | null
+          moeda?: string | null
+          nome?: string | null
+          saldo?: never
+          user_id?: string | null
+        }
+        Update: {
+          ativo?: boolean | null
+          id?: string | null
+          moeda?: string | null
+          nome?: string | null
+          saldo?: never
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       [_ in never]: never
@@ -338,6 +492,13 @@ export type Database = {
       moeda: "BRL" | "USD"
       tipo_movimentacao: "compra" | "venda" | "aporte" | "saque"
       tipo_provento: "dividendo" | "jcp" | "rendimento" | "outros"
+      tipo_transacao_caixa:
+        | "DEPOSITO"
+        | "PROVENTO"
+        | "TRANSFERENCIA"
+        | "APLICACAO"
+        | "RESGATE"
+        | "SAQUE"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -469,6 +630,14 @@ export const Constants = {
       moeda: ["BRL", "USD"],
       tipo_movimentacao: ["compra", "venda", "aporte", "saque"],
       tipo_provento: ["dividendo", "jcp", "rendimento", "outros"],
+      tipo_transacao_caixa: [
+        "DEPOSITO",
+        "PROVENTO",
+        "TRANSFERENCIA",
+        "APLICACAO",
+        "RESGATE",
+        "SAQUE",
+      ],
     },
   },
 } as const
