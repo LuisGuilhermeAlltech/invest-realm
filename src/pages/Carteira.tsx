@@ -71,6 +71,7 @@ export default function Carteira() {
 
   const openRendaFixaModal = (ativo: CarteiraAtual) => {
     setEditingAtivo(ativo);
+    // Para Renda Fixa, o "preco_atual" representa o valor_atual total (já que qty=1)
     setNovoPreco(ativo.preco_atual?.toString() || '');
     setDataPreco(format(new Date(), 'yyyy-MM-dd'));
     setIsRendaFixaModal(true);
@@ -170,8 +171,14 @@ export default function Carteira() {
     return cliPorAtivo.find(c => c.ativo_id === ativoId);
   };
 
+  // Para Renda Fixa, consideramos como "com posição" se custo_total > 0 (já que qty pode ser 1)
   const ativosComPosicao = useMemo(() => {
-    return carteira.filter(a => a.quantidade_total > 0);
+    return carteira.filter(a => {
+      if (isRendaFixa(a.classe)) {
+        return a.custo_total > 0;
+      }
+      return a.quantidade_total > 0;
+    });
   }, [carteira]);
 
   // Count assets per class
@@ -189,12 +196,23 @@ export default function Carteira() {
     return ativosComPosicao.filter(a => a.classe === filtroClasse);
   }, [ativosComPosicao, filtroClasse]);
 
+  // Verificar se estamos filtrando por Renda Fixa
+  const filtrandoRendaFixa = filtroClasse === 'renda_fixa';
+
   // Calculate weighted average price for filtered assets
   // PM é calculado por moeda (não faz sentido misturar USD e BRL)
-  // Para exibição consolidada, mostramos custo total em BRL
+  // Para Renda Fixa, não calculamos PM - apenas totais
   const resumoFiltro = useMemo(() => {
     if (ativosFiltrados.length === 0) {
-      return { custoTotalBrl: 0, custoTotalUsd: 0, valorAtualUsd: 0, valorAtualBrl: 0, hasUsd: false, hasBrl: false };
+      return { 
+        custoTotalBrl: 0, 
+        custoTotalUsd: 0, 
+        valorAtualUsd: 0, 
+        valorAtualBrl: 0, 
+        hasUsd: false, 
+        hasBrl: false,
+        isRendaFixa: false 
+      };
     }
 
     let custoTotalBrl = 0;
@@ -203,10 +221,18 @@ export default function Carteira() {
     let valorAtualUsd = 0;
     let qtdBrl = 0;
     let qtdUsd = 0;
+    let hasRendaFixa = false;
 
     ativosFiltrados.forEach(a => {
       const temPreco = a.preco_atual !== null && a.preco_atual !== undefined && a.preco_atual > 0;
-      if (a.moeda_base === 'USD') {
+      const ehRendaFixa = isRendaFixa(a.classe);
+      
+      if (ehRendaFixa) {
+        hasRendaFixa = true;
+        // Para Renda Fixa: custo_total = valor_investido, valor_atual = preco_atual (já que qty=1)
+        custoTotalBrl += a.custo_total;
+        if (temPreco) valorAtualBrl += a.valor_atual;
+      } else if (a.moeda_base === 'USD') {
         // Cálculos em USD para ativos USD: custo_total_usd = Σ(qtd*pm_usd)
         custoTotalUsd += a.custo_total;
         qtdUsd += a.quantidade_total;
@@ -220,6 +246,7 @@ export default function Carteira() {
     });
 
     // PM calculado separadamente por moeda: pm_ponderado = custo_total / qtd_total
+    // Não calculamos PM para Renda Fixa
     const pmBrl = qtdBrl > 0 ? custoTotalBrl / qtdBrl : null;
     const pmUsd = qtdUsd > 0 ? custoTotalUsd / qtdUsd : null;
 
@@ -235,9 +262,10 @@ export default function Carteira() {
       pmBrl,
       pmUsd,
       hasUsd: qtdUsd > 0, 
-      hasBrl: qtdBrl > 0 
+      hasBrl: qtdBrl > 0,
+      isRendaFixa: hasRendaFixa && filtrandoRendaFixa
     };
-  }, [ativosFiltrados, usdBrl]);
+  }, [ativosFiltrados, usdBrl, filtrandoRendaFixa]);
 
   // Handle saving asset metadata
   const handleSaveAtivoMeta = (id: string, data: { classe: ClasseAtivo; nome?: string }) => {
@@ -320,7 +348,32 @@ export default function Carteira() {
               Categoria: <span className="text-foreground font-medium">{filtroClasse === 'todas' ? 'Todas' : CLASSE_LABELS[filtroClasse as ClasseAtivo]}</span>
             </span>
             <span className="text-muted-foreground">|</span>
-            {resumoFiltro.hasUsd && resumoFiltro.hasBrl ? (
+            
+            {/* Para Renda Fixa, mostrar Valor Investido e Valor Atual */}
+            {resumoFiltro.isRendaFixa ? (
+              <>
+                <span className="text-muted-foreground">
+                  Valor Investido: <span className="text-foreground font-medium whitespace-nowrap">{formatCurrency(resumoFiltro.custoTotalBrl)}</span>
+                </span>
+                {resumoFiltro.valorAtualBrl > 0 && (
+                  <>
+                    <span className="text-muted-foreground">|</span>
+                    <span className="text-muted-foreground">
+                      Valor Atual: <span className="text-foreground font-medium whitespace-nowrap">{formatCurrency(resumoFiltro.valorAtualBrl)}</span>
+                    </span>
+                    <span className="text-muted-foreground">|</span>
+                    <span className="text-muted-foreground">
+                      Resultado: <span className={cn(
+                        "font-medium whitespace-nowrap",
+                        resumoFiltro.valorAtualBrl - resumoFiltro.custoTotalBrl >= 0 ? "text-positive" : "text-negative"
+                      )}>
+                        {formatCurrency(resumoFiltro.valorAtualBrl - resumoFiltro.custoTotalBrl)}
+                      </span>
+                    </span>
+                  </>
+                )}
+              </>
+            ) : resumoFiltro.hasUsd && resumoFiltro.hasBrl ? (
               // Misto: mostra consolidado
               <span className="text-muted-foreground">
                 Custo Total: <span className="text-foreground font-medium">{formatCurrency(resumoFiltro.custoConsolidadoBrl)}</span>
@@ -354,7 +407,9 @@ export default function Carteira() {
                 Custo Total: <span className="text-foreground font-medium whitespace-nowrap">{formatCurrency(resumoFiltro.custoTotalBrl)}</span>
               </span>
             )}
-            {resumoFiltro.hasBrl && (
+            
+            {/* PM só para não-Renda Fixa */}
+            {!resumoFiltro.isRendaFixa && resumoFiltro.hasBrl && (
               <>
                 <span className="text-muted-foreground">|</span>
                 <span className="text-muted-foreground">
@@ -362,7 +417,7 @@ export default function Carteira() {
                 </span>
               </>
             )}
-            {resumoFiltro.hasUsd && (
+            {!resumoFiltro.isRendaFixa && resumoFiltro.hasUsd && (
               <>
                 <span className="text-muted-foreground">|</span>
                 <span className="text-muted-foreground">
@@ -384,17 +439,34 @@ export default function Carteira() {
                   <TableRow>
                     <TableHead>Ticker</TableHead>
                     <TableHead>Classe</TableHead>
-                    <TableHead className="text-right">Qtd</TableHead>
-                    <TableHead className="text-right whitespace-nowrap">PM</TableHead>
-                    <TableHead className="text-right whitespace-nowrap">Preço Atual</TableHead>
-                    <TableHead className="text-right whitespace-nowrap">Valor Atual</TableHead>
+                    {/* Colunas condicionais baseadas na classe */}
+                    {filtrandoRendaFixa ? (
+                      // Renda Fixa: Valor Investido, Valor Atual
+                      <>
+                        <TableHead className="text-right whitespace-nowrap">Valor Investido</TableHead>
+                        <TableHead className="text-right whitespace-nowrap">Valor Atual</TableHead>
+                      </>
+                    ) : (
+                      // Outros: Qtd, PM, Preço Atual, Valor Atual
+                      <>
+                        <TableHead className="text-right">Qtd</TableHead>
+                        <TableHead className="text-right whitespace-nowrap">PM</TableHead>
+                        <TableHead className="text-right whitespace-nowrap">Preço Atual</TableHead>
+                        <TableHead className="text-right whitespace-nowrap">Valor Atual</TableHead>
+                      </>
+                    )}
                     <TableHead className="text-right whitespace-nowrap">
                       <Tooltip>
-                        <TooltipTrigger className="cursor-help">P/L</TooltipTrigger>
-                        <TooltipContent><p>Lucro/Prejuízo na moeda original do ativo</p></TooltipContent>
+                        <TooltipTrigger className="cursor-help">{filtrandoRendaFixa ? 'Resultado' : 'P/L'}</TooltipTrigger>
+                        <TooltipContent><p>{filtrandoRendaFixa ? 'Valor Atual − Valor Investido' : 'Lucro/Prejuízo na moeda original do ativo'}</p></TooltipContent>
                       </Tooltip>
                     </TableHead>
-                    <TableHead className="text-right whitespace-nowrap">P/L %</TableHead>
+                    <TableHead className="text-right whitespace-nowrap">
+                      <Tooltip>
+                        <TooltipTrigger className="cursor-help">{filtrandoRendaFixa ? 'Rentab. %' : 'P/L %'}</TooltipTrigger>
+                        <TooltipContent><p>{filtrandoRendaFixa ? '(Resultado / Valor Investido) × 100' : 'Percentual de lucro/prejuízo'}</p></TooltipContent>
+                      </Tooltip>
+                    </TableHead>
                     <TableHead className="text-right whitespace-nowrap">
                       <Tooltip>
                         <TooltipTrigger className="cursor-help">CLI (BRL)</TooltipTrigger>
@@ -415,18 +487,55 @@ export default function Carteira() {
                     const temPreco = hasValidPrice(ativo);
                     const ehRendaFixa = isRendaFixa(ativo.classe);
                     const cli = getCliData(ativo.ativo_id);
+                    
                     return (
                       <TableRow key={ativo.ativo_id}>
                         <TableCell className="font-medium">{ativo.ticker}</TableCell>
                         <TableCell className="text-muted-foreground">{CLASSE_LABELS[ativo.classe as ClasseAtivo]}</TableCell>
-                        <TableCell className="text-right font-mono">{formatNumber(ativo.quantidade_total, 4)}</TableCell>
-                        <TableCell className="text-right font-mono whitespace-nowrap">{formatCurrency(ativo.preco_medio, ativo.moeda_base as Moeda)}</TableCell>
-                        <TableCell className="text-right font-mono">
-                          {temPreco ? formatCurrency(ativo.preco_atual, ativo.moeda_base as Moeda) : '—'}
-                        </TableCell>
-                        <TableCell className="text-right font-mono">
-                          {temPreco ? formatCurrency(ativo.valor_atual, ativo.moeda_base as Moeda) : '—'}
-                        </TableCell>
+                        
+                        {/* Células condicionais baseadas na classe */}
+                        {filtrandoRendaFixa ? (
+                          // Renda Fixa: Valor Investido (custo_total), Valor Atual
+                          <>
+                            <TableCell className="text-right font-mono">
+                              {formatCurrency(ativo.custo_total, ativo.moeda_base as Moeda)}
+                            </TableCell>
+                            <TableCell className="text-right font-mono">
+                              {temPreco ? formatCurrency(ativo.valor_atual, ativo.moeda_base as Moeda) : '—'}
+                            </TableCell>
+                          </>
+                        ) : ehRendaFixa ? (
+                          // Renda Fixa em visualização "Todas": mostra adaptado
+                          <>
+                            <TableCell className="text-right font-mono text-muted-foreground">—</TableCell>
+                            <TableCell className="text-right font-mono">
+                              <Tooltip>
+                                <TooltipTrigger className="cursor-help">
+                                  {formatCurrency(ativo.custo_total, ativo.moeda_base as Moeda)}
+                                </TooltipTrigger>
+                                <TooltipContent>Valor Investido</TooltipContent>
+                              </Tooltip>
+                            </TableCell>
+                            <TableCell className="text-right font-mono text-muted-foreground">—</TableCell>
+                            <TableCell className="text-right font-mono">
+                              {temPreco ? formatCurrency(ativo.valor_atual, ativo.moeda_base as Moeda) : '—'}
+                            </TableCell>
+                          </>
+                        ) : (
+                          // Outros ativos: comportamento normal
+                          <>
+                            <TableCell className="text-right font-mono">{formatNumber(ativo.quantidade_total, 4)}</TableCell>
+                            <TableCell className="text-right font-mono whitespace-nowrap">{formatCurrency(ativo.preco_medio, ativo.moeda_base as Moeda)}</TableCell>
+                            <TableCell className="text-right font-mono">
+                              {temPreco ? formatCurrency(ativo.preco_atual, ativo.moeda_base as Moeda) : '—'}
+                            </TableCell>
+                            <TableCell className="text-right font-mono">
+                              {temPreco ? formatCurrency(ativo.valor_atual, ativo.moeda_base as Moeda) : '—'}
+                            </TableCell>
+                          </>
+                        )}
+                        
+                        {/* P/L ou Resultado */}
                         <TableCell className={cn('text-right font-mono', temPreco && ativo.lucro_prejuizo >= 0 ? 'text-positive' : temPreco && ativo.lucro_prejuizo < 0 ? 'text-negative' : '')}>
                           {temPreco ? formatCurrency(ativo.lucro_prejuizo, ativo.moeda_base as Moeda) : '—'}
                         </TableCell>
@@ -463,7 +572,7 @@ export default function Carteira() {
                                   </Button>
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                  <p>Renda Fixa: atualização manual do valor</p>
+                                  <p>Atualizar valor atual do título</p>
                                 </TooltipContent>
                               </Tooltip>
                             ) : (
@@ -501,7 +610,7 @@ export default function Carteira() {
           <DialogHeader>
             <DialogTitle>Atualizar Valor - {editingAtivo?.ticker}</DialogTitle>
             <DialogDescription>
-              Informe o preço unitário atual do título de Renda Fixa.
+              Informe o valor atual total do título de Renda Fixa.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -515,20 +624,39 @@ export default function Carteira() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="precoUnitario">Preço Unitário Atual (R$)</Label>
+              <Label htmlFor="valorAtual">Valor Atual (R$)</Label>
               <Input 
-                id="precoUnitario"
+                id="valorAtual"
                 type="number" 
                 step="0.01" 
                 value={novoPreco} 
                 onChange={(e) => setNovoPreco(e.target.value)} 
-                placeholder="Ex: 850.50" 
+                placeholder="Ex: 10850.50" 
               />
+              <p className="text-xs text-muted-foreground">
+                Informe o valor total atual do título, não o preço unitário
+              </p>
             </div>
             {editingAtivo && novoPreco && (
               <div className="p-3 bg-muted rounded-lg text-sm space-y-1">
-                <p><span className="text-muted-foreground">Quantidade:</span> {formatNumber(editingAtivo.quantidade_total, 4)}</p>
-                <p><span className="text-muted-foreground">Valor Atual Calculado:</span> {formatCurrency(editingAtivo.quantidade_total * parseFloat(novoPreco || '0'), editingAtivo.moeda_base as Moeda)}</p>
+                <p><span className="text-muted-foreground">Valor Investido:</span> {formatCurrency(editingAtivo.custo_total, editingAtivo.moeda_base as Moeda)}</p>
+                <p><span className="text-muted-foreground">Valor Atual:</span> {formatCurrency(parseFloat(novoPreco || '0'), editingAtivo.moeda_base as Moeda)}</p>
+                <p>
+                  <span className="text-muted-foreground">Resultado:</span>{' '}
+                  <span className={cn(
+                    parseFloat(novoPreco || '0') - editingAtivo.custo_total >= 0 ? 'text-positive' : 'text-negative'
+                  )}>
+                    {formatCurrency(parseFloat(novoPreco || '0') - editingAtivo.custo_total, editingAtivo.moeda_base as Moeda)}
+                  </span>
+                </p>
+                <p>
+                  <span className="text-muted-foreground">Rentabilidade:</span>{' '}
+                  <span className={cn(
+                    parseFloat(novoPreco || '0') - editingAtivo.custo_total >= 0 ? 'text-positive' : 'text-negative'
+                  )}>
+                    {formatPercent(((parseFloat(novoPreco || '0') - editingAtivo.custo_total) / editingAtivo.custo_total) * 100)}
+                  </span>
+                </p>
               </div>
             )}
           </div>
