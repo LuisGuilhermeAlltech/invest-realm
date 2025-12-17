@@ -228,11 +228,17 @@ export default function Carteira() {
       const ehRendaFixa = isRendaFixa(a.classe);
       
       if (ehRendaFixa) {
+        // GUARD CLAUSE: Para Renda Fixa, usar apenas valor_investido e valor_atual
+        // valor_atual = preco_atual DIRETAMENTE (não quantidade × preço)
+        // custo_total = valor_investido (soma simples, não recalcular)
         hasRendaFixa = true;
-        // Para Renda Fixa: custo_total = valor_investido, valor_atual = preco_atual (já que qty=1)
         custoTotalBrl += a.custo_total;
-        if (temPreco) valorAtualBrl += a.valor_atual;
-      } else if (a.moeda_base === 'USD') {
+        // CORREÇÃO: valor_atual para Renda Fixa é o preco_atual diretamente
+        if (temPreco) valorAtualBrl += a.preco_atual;
+        return; // Não processar Renda Fixa na lógica genérica
+      }
+      
+      if (a.moeda_base === 'USD') {
         // Cálculos em USD para ativos USD: custo_total_usd = Σ(qtd*pm_usd)
         custoTotalUsd += a.custo_total;
         qtdUsd += a.quantidade_total;
@@ -495,13 +501,14 @@ export default function Carteira() {
                         
                         {/* Células condicionais baseadas na classe */}
                         {filtrandoRendaFixa ? (
-                          // Renda Fixa: Valor Investido (custo_total), Valor Atual
+                          // Renda Fixa: Valor Investido (custo_total), Valor Atual (preco_atual diretamente)
                           <>
                             <TableCell className="text-right font-mono">
                               {formatCurrency(ativo.custo_total, ativo.moeda_base as Moeda)}
                             </TableCell>
                             <TableCell className="text-right font-mono">
-                              {temPreco ? formatCurrency(ativo.valor_atual, ativo.moeda_base as Moeda) : '—'}
+                              {/* CORREÇÃO: valor_atual = preco_atual diretamente, não quantidade × preço */}
+                              {temPreco ? formatCurrency(ativo.preco_atual, ativo.moeda_base as Moeda) : '—'}
                             </TableCell>
                           </>
                         ) : ehRendaFixa ? (
@@ -514,11 +521,12 @@ export default function Carteira() {
                                   {formatCurrency(ativo.custo_total, ativo.moeda_base as Moeda)}
                                 </TooltipTrigger>
                                 <TooltipContent>Valor Investido</TooltipContent>
-                              </Tooltip>
+                            </Tooltip>
                             </TableCell>
                             <TableCell className="text-right font-mono text-muted-foreground">—</TableCell>
                             <TableCell className="text-right font-mono">
-                              {temPreco ? formatCurrency(ativo.valor_atual, ativo.moeda_base as Moeda) : '—'}
+                              {/* CORREÇÃO: valor_atual = preco_atual diretamente para Renda Fixa */}
+                              {temPreco ? formatCurrency(ativo.preco_atual, ativo.moeda_base as Moeda) : '—'}
                             </TableCell>
                           </>
                         ) : (
@@ -535,13 +543,27 @@ export default function Carteira() {
                           </>
                         )}
                         
-                        {/* P/L ou Resultado */}
-                        <TableCell className={cn('text-right font-mono', temPreco && ativo.lucro_prejuizo >= 0 ? 'text-positive' : temPreco && ativo.lucro_prejuizo < 0 ? 'text-negative' : '')}>
-                          {temPreco ? formatCurrency(ativo.lucro_prejuizo, ativo.moeda_base as Moeda) : '—'}
-                        </TableCell>
-                        <TableCell className={cn('text-right font-mono', temPreco && ativo.lucro_prejuizo_pct >= 0 ? 'text-positive' : temPreco && ativo.lucro_prejuizo_pct < 0 ? 'text-negative' : '')}>
-                          {temPreco ? formatPercent(ativo.lucro_prejuizo_pct) : '—'}
-                        </TableCell>
+                        {/* P/L ou Resultado - CORREÇÃO: Para Renda Fixa, calcular diretamente */}
+                        {(() => {
+                          // GUARD CLAUSE: Para Renda Fixa, resultado = preco_atual - custo_total
+                          const resultado = ehRendaFixa && temPreco 
+                            ? (ativo.preco_atual - ativo.custo_total) 
+                            : ativo.lucro_prejuizo;
+                          const rentabPct = ehRendaFixa && temPreco && ativo.custo_total > 0
+                            ? ((ativo.preco_atual - ativo.custo_total) / ativo.custo_total) * 100
+                            : ativo.lucro_prejuizo_pct;
+                          
+                          return (
+                            <>
+                              <TableCell className={cn('text-right font-mono', temPreco && resultado >= 0 ? 'text-positive' : temPreco && resultado < 0 ? 'text-negative' : '')}>
+                                {temPreco ? formatCurrency(resultado, ativo.moeda_base as Moeda) : '—'}
+                              </TableCell>
+                              <TableCell className={cn('text-right font-mono', temPreco && rentabPct >= 0 ? 'text-positive' : temPreco && rentabPct < 0 ? 'text-negative' : '')}>
+                                {temPreco ? formatPercent(rentabPct) : '—'}
+                              </TableCell>
+                            </>
+                          );
+                        })()}
                         <TableCell className={cn('text-right font-mono', cli && cli.cli_brl < 0 && 'text-positive')}>
                           {cli ? formatCurrency(cli.cli_brl) : '—'}
                         </TableCell>
