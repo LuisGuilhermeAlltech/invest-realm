@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useExchangeRate } from '@/hooks/useExchangeRate';
+import { getValorAtualAtivo } from '@/lib/formatters';
 
 export function useDashboard() {
   const { user } = useAuth();
@@ -17,7 +18,14 @@ export function useDashboard() {
       
       if (error) throw error;
       
-      const ativosComPosicao = data.filter(row => row.quantidade_total > 0);
+      // GUARD CLAUSE: Para Renda Fixa, considerar posição se custo_total > 0 (não quantidade)
+      const ativosComPosicao = data.filter(row => {
+        if (row.classe === 'renda_fixa') {
+          return (row.custo_total || 0) > 0;
+        }
+        return row.quantidade_total > 0;
+      });
+      
       const ativosComPreco = ativosComPosicao.filter(row => row.preco_atual !== null && row.preco_atual > 0);
       
       // Convert USD values to BRL before summing
@@ -28,9 +36,10 @@ export function useDashboard() {
         return valor;
       };
       
-      // Only sum valor_atual for assets that have valid prices, converting USD to BRL
+      // CORREÇÃO: Usar getValorAtualAtivo para obter o valor correto por classe
       const totalCarteira = ativosComPreco.reduce((acc, row) => {
-        const valorBrl = convertToBrl(row.valor_atual || 0, row.moeda_base);
+        const valorCorreto = getValorAtualAtivo(row.classe || '', row.valor_atual, row.preco_atual);
+        const valorBrl = convertToBrl(valorCorreto, row.moeda_base);
         return acc + valorBrl;
       }, 0);
       
@@ -158,19 +167,28 @@ export function useDashboard() {
       // Get carteira data with moeda_base to know which values need conversion
       const { data: carteiraData, error: carteiraError } = await supabase
         .from('vw_carteira_atual')
-        .select('classe, valor_atual, moeda_base, quantidade_total, preco_atual')
+        .select('classe, valor_atual, moeda_base, quantidade_total, preco_atual, custo_total')
         .eq('user_id', user!.id);
       
       if (carteiraError) throw carteiraError;
       
       // Calculate the correct totals per class with USD conversion
+      // GUARD CLAUSE: Para Renda Fixa, usar preco_atual diretamente
       const totaisPorClasse: Record<string, number> = {};
       let totalCarteiraConvertido = 0;
       
       carteiraData
-        .filter(row => row.quantidade_total > 0 && row.preco_atual !== null && row.preco_atual > 0)
+        .filter(row => {
+          // GUARD CLAUSE: Para Renda Fixa, considerar se tem custo_total > 0 e preco_atual válido
+          if (row.classe === 'renda_fixa') {
+            return (row.custo_total || 0) > 0 && row.preco_atual !== null && row.preco_atual > 0;
+          }
+          return row.quantidade_total > 0 && row.preco_atual !== null && row.preco_atual > 0;
+        })
         .forEach(row => {
-          let valorBrl = row.valor_atual || 0;
+          // CORREÇÃO: Usar getValorAtualAtivo para obter valor correto por classe
+          const valorCorreto = getValorAtualAtivo(row.classe || '', row.valor_atual, row.preco_atual);
+          let valorBrl = valorCorreto;
           if (row.moeda_base === 'USD') {
             valorBrl = valorBrl * usdBrl;
           }

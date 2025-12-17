@@ -549,8 +549,9 @@ export default function Carteira() {
                           const resultado = ehRendaFixa && temPreco 
                             ? (ativo.preco_atual - ativo.custo_total) 
                             : ativo.lucro_prejuizo;
+                          // CORREÇÃO: Retornar como fração (0.0655) para consistência com a view
                           const rentabPct = ehRendaFixa && temPreco && ativo.custo_total > 0
-                            ? ((ativo.preco_atual - ativo.custo_total) / ativo.custo_total) * 100
+                            ? (ativo.preco_atual - ativo.custo_total) / ativo.custo_total
                             : ativo.lucro_prejuizo_pct;
                           
                           return (
