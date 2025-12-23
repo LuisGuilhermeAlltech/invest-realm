@@ -13,6 +13,7 @@ import Movimentacoes from "@/pages/Movimentacoes";
 import Proventos from "@/pages/Proventos";
 import Metas from "@/pages/Metas";
 import Cadastros from "@/pages/Cadastros";
+import FinanceiroMensal from "@/pages/FinanceiroMensal";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -37,6 +38,7 @@ function AppRoutes() {
       <Route path="/movimentacoes" element={<ProtectedRoute><Movimentacoes /></ProtectedRoute>} />
       <Route path="/proventos" element={<ProtectedRoute><Proventos /></ProtectedRoute>} />
       <Route path="/metas" element={<ProtectedRoute><Metas /></ProtectedRoute>} />
+      <Route path="/financeiro" element={<ProtectedRoute><FinanceiroMensal /></ProtectedRoute>} />
       <Route path="/cadastros" element={<ProtectedRoute><Cadastros /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
