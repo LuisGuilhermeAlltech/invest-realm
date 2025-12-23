@@ -29,6 +29,7 @@ export interface Gasto {
   user_id: string;
   descricao: string;
   valor: number;
+  categoria_id: string | null;
 }
 
 export function useFinanceiroMensal() {
@@ -73,9 +74,25 @@ export function useFinanceiroMensal() {
     },
   });
 
-  // Deletar mês
+  // Deletar mês - apenas se for o último
   const deleteMes = useMutation({
     mutationFn: async (id: string) => {
+      // Verificar se é o último mês
+      const mesAtual = meses?.find(m => m.id === id);
+      if (!mesAtual) throw new Error('Mês não encontrado');
+      
+      const mesAnterior = meses?.find(
+        m => (m.ano < mesAtual.ano) || (m.ano === mesAtual.ano && m.mes < mesAtual.mes)
+      );
+      const mesPosterior = meses?.find(
+        m => (m.ano > mesAtual.ano) || (m.ano === mesAtual.ano && m.mes > mesAtual.mes)
+      );
+      
+      // Só permite exclusão se não houver mês posterior
+      if (mesPosterior) {
+        throw new Error('Só é possível excluir o último mês cadastrado para proteger o saldo acumulado');
+      }
+
       const { error } = await supabase
         .from('financeiro_mensal')
         .delete()
@@ -92,11 +109,24 @@ export function useFinanceiroMensal() {
     },
   });
 
+  // Verificar se um mês pode ser excluído
+  const canDeleteMes = (id: string) => {
+    const mesAtual = meses?.find(m => m.id === id);
+    if (!mesAtual) return false;
+    
+    const mesPosterior = meses?.find(
+      m => (m.ano > mesAtual.ano) || (m.ano === mesAtual.ano && m.mes > mesAtual.mes)
+    );
+    
+    return !mesPosterior;
+  };
+
   return {
     meses,
     isLoading,
     createMes: createMes.mutate,
     deleteMes: deleteMes.mutate,
+    canDeleteMes,
   };
 }
 
@@ -121,7 +151,7 @@ export function useFinanceiroDetalhe(financeiroMensalId: string | null) {
     enabled: !!user && !!financeiroMensalId,
   });
 
-  // Buscar gastos do mês
+  // Buscar gastos do mês com categoria
   const { data: gastos, isLoading: loadingGastos } = useQuery({
     queryKey: ['financeiro-gastos', financeiroMensalId],
     queryFn: async () => {
@@ -161,16 +191,17 @@ export function useFinanceiroDetalhe(financeiroMensalId: string | null) {
     },
   });
 
-  // Adicionar gasto
+  // Adicionar gasto com categoria
   const addGasto = useMutation({
-    mutationFn: async ({ descricao, valor }: { descricao: string; valor: number }) => {
+    mutationFn: async ({ descricao, valor, categoria_id }: { descricao: string; valor: number; categoria_id: string }) => {
       const { error } = await supabase
         .from('financeiro_gastos')
         .insert({ 
           user_id: user!.id, 
           financeiro_mensal_id: financeiroMensalId!, 
           descricao, 
-          valor 
+          valor,
+          categoria_id
         });
       
       if (error) throw error;
@@ -178,6 +209,8 @@ export function useFinanceiroDetalhe(financeiroMensalId: string | null) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['financeiro-gastos', financeiroMensalId] });
       queryClient.invalidateQueries({ queryKey: ['financeiro-mensal'] });
+      queryClient.invalidateQueries({ queryKey: ['gastos-por-categoria', financeiroMensalId] });
+      queryClient.invalidateQueries({ queryKey: ['gastos-por-tipo', financeiroMensalId] });
       toast({ title: 'Gasto adicionado!' });
     },
     onError: (error: Error) => {
@@ -206,10 +239,10 @@ export function useFinanceiroDetalhe(financeiroMensalId: string | null) {
 
   // Atualizar gasto
   const updateGasto = useMutation({
-    mutationFn: async ({ id, descricao, valor }: { id: string; descricao: string; valor: number }) => {
+    mutationFn: async ({ id, descricao, valor, categoria_id }: { id: string; descricao: string; valor: number; categoria_id: string }) => {
       const { error } = await supabase
         .from('financeiro_gastos')
-        .update({ descricao, valor })
+        .update({ descricao, valor, categoria_id })
         .eq('id', id);
       
       if (error) throw error;
@@ -217,6 +250,8 @@ export function useFinanceiroDetalhe(financeiroMensalId: string | null) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['financeiro-gastos', financeiroMensalId] });
       queryClient.invalidateQueries({ queryKey: ['financeiro-mensal'] });
+      queryClient.invalidateQueries({ queryKey: ['gastos-por-categoria', financeiroMensalId] });
+      queryClient.invalidateQueries({ queryKey: ['gastos-por-tipo', financeiroMensalId] });
     },
     onError: (error: Error) => {
       toast({ title: 'Erro ao atualizar gasto', description: error.message, variant: 'destructive' });
@@ -256,6 +291,8 @@ export function useFinanceiroDetalhe(financeiroMensalId: string | null) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['financeiro-gastos', financeiroMensalId] });
       queryClient.invalidateQueries({ queryKey: ['financeiro-mensal'] });
+      queryClient.invalidateQueries({ queryKey: ['gastos-por-categoria', financeiroMensalId] });
+      queryClient.invalidateQueries({ queryKey: ['gastos-por-tipo', financeiroMensalId] });
       toast({ title: 'Gasto excluído!' });
     },
     onError: (error: Error) => {
