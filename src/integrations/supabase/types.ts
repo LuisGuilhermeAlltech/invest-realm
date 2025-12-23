@@ -177,6 +177,140 @@ export type Database = {
           },
         ]
       }
+      financeiro_gastos: {
+        Row: {
+          created_at: string | null
+          descricao: string
+          financeiro_mensal_id: string
+          id: string
+          updated_at: string | null
+          user_id: string
+          valor: number
+        }
+        Insert: {
+          created_at?: string | null
+          descricao: string
+          financeiro_mensal_id: string
+          id?: string
+          updated_at?: string | null
+          user_id: string
+          valor?: number
+        }
+        Update: {
+          created_at?: string | null
+          descricao?: string
+          financeiro_mensal_id?: string
+          id?: string
+          updated_at?: string | null
+          user_id?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financeiro_gastos_financeiro_mensal_id_fkey"
+            columns: ["financeiro_mensal_id"]
+            isOneToOne: false
+            referencedRelation: "financeiro_mensal"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financeiro_gastos_financeiro_mensal_id_fkey"
+            columns: ["financeiro_mensal_id"]
+            isOneToOne: false
+            referencedRelation: "vw_financeiro_mensal_acumulado"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financeiro_gastos_financeiro_mensal_id_fkey"
+            columns: ["financeiro_mensal_id"]
+            isOneToOne: false
+            referencedRelation: "vw_financeiro_mensal_resumo"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      financeiro_mensal: {
+        Row: {
+          ano: number
+          created_at: string | null
+          id: string
+          mes: number
+          observacao: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          ano: number
+          created_at?: string | null
+          id?: string
+          mes: number
+          observacao?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          ano?: number
+          created_at?: string | null
+          id?: string
+          mes?: number
+          observacao?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      financeiro_receitas: {
+        Row: {
+          created_at: string | null
+          descricao: string
+          financeiro_mensal_id: string
+          id: string
+          updated_at: string | null
+          user_id: string
+          valor: number
+        }
+        Insert: {
+          created_at?: string | null
+          descricao: string
+          financeiro_mensal_id: string
+          id?: string
+          updated_at?: string | null
+          user_id: string
+          valor?: number
+        }
+        Update: {
+          created_at?: string | null
+          descricao?: string
+          financeiro_mensal_id?: string
+          id?: string
+          updated_at?: string | null
+          user_id?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financeiro_receitas_financeiro_mensal_id_fkey"
+            columns: ["financeiro_mensal_id"]
+            isOneToOne: false
+            referencedRelation: "financeiro_mensal"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financeiro_receitas_financeiro_mensal_id_fkey"
+            columns: ["financeiro_mensal_id"]
+            isOneToOne: false
+            referencedRelation: "vw_financeiro_mensal_acumulado"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financeiro_receitas_financeiro_mensal_id_fkey"
+            columns: ["financeiro_mensal_id"]
+            isOneToOne: false
+            referencedRelation: "vw_financeiro_mensal_resumo"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       metas_alocacao: {
         Row: {
           ativo: boolean | null
@@ -438,6 +572,75 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      vw_financeiro_mensal_acumulado: {
+        Row: {
+          ano: number | null
+          id: string | null
+          mes: number | null
+          observacao: string | null
+          saldo_acumulado: number | null
+          saldo_mes: number | null
+          total_gastos: number | null
+          total_receitas: number | null
+          user_id: string | null
+        }
+        Insert: {
+          ano?: number | null
+          id?: string | null
+          mes?: number | null
+          observacao?: string | null
+          saldo_acumulado?: never
+          saldo_mes?: never
+          total_gastos?: never
+          total_receitas?: never
+          user_id?: string | null
+        }
+        Update: {
+          ano?: number | null
+          id?: string | null
+          mes?: number | null
+          observacao?: string | null
+          saldo_acumulado?: never
+          saldo_mes?: never
+          total_gastos?: never
+          total_receitas?: never
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      vw_financeiro_mensal_resumo: {
+        Row: {
+          ano: number | null
+          id: string | null
+          mes: number | null
+          observacao: string | null
+          saldo_mes: number | null
+          total_gastos: number | null
+          total_receitas: number | null
+          user_id: string | null
+        }
+        Insert: {
+          ano?: number | null
+          id?: string | null
+          mes?: number | null
+          observacao?: string | null
+          saldo_mes?: never
+          total_gastos?: never
+          total_receitas?: never
+          user_id?: string | null
+        }
+        Update: {
+          ano?: number | null
+          id?: string | null
+          mes?: number | null
+          observacao?: string | null
+          saldo_mes?: never
+          total_gastos?: never
+          total_receitas?: never
+          user_id?: string | null
+        }
+        Relationships: []
       }
       vw_posicao_por_ativo: {
         Row: {
