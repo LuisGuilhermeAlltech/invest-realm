@@ -8,6 +8,13 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Table,
   TableBody,
   TableCell,
@@ -16,8 +23,12 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Trash2, Check, X, TrendingUp, TrendingDown, Wallet } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { Plus, Trash2, Check, X, TrendingUp, TrendingDown, Wallet, ArrowRight } from 'lucide-react';
 import { FinanceiroMensal, useFinanceiroDetalhe } from '@/hooks/useFinanceiroMensal';
+import { useCategoriasFinanceiras, useGastosPorCategoria, useGastosPorTipo, TIPOS_CATEGORIA } from '@/hooks/useCategoriasFinanceiras';
+import { GastosPorTipoChart, TotaisPorTipoCards } from './FinanceiroCharts';
 import { formatCurrency } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 
@@ -30,9 +41,10 @@ interface FinanceiroDetalheModalProps {
   mes: FinanceiroMensal | undefined;
   open: boolean;
   onClose: () => void;
+  onConverterAporte?: (saldo: number, mesAno: string) => void;
 }
 
-export default function FinanceiroDetalheModal({ mes, open, onClose }: FinanceiroDetalheModalProps) {
+export default function FinanceiroDetalheModal({ mes, open, onClose, onConverterAporte }: FinanceiroDetalheModalProps) {
   const {
     receitas,
     gastos,
@@ -45,11 +57,15 @@ export default function FinanceiroDetalheModal({ mes, open, onClose }: Financeir
     deleteGasto,
   } = useFinanceiroDetalhe(mes?.id || null);
 
+  const { categoriasAtivas } = useCategoriasFinanceiras();
+  const { data: gastosPorCategoria } = useGastosPorCategoria(mes?.id || null);
+  const { data: gastosPorTipo } = useGastosPorTipo(mes?.id || null);
+
   const [novaReceita, setNovaReceita] = useState({ descricao: '', valor: '' });
-  const [novoGasto, setNovoGasto] = useState({ descricao: '', valor: '' });
+  const [novoGasto, setNovoGasto] = useState({ descricao: '', valor: '', categoria_id: '' });
   const [editingReceita, setEditingReceita] = useState<string | null>(null);
   const [editingGasto, setEditingGasto] = useState<string | null>(null);
-  const [editValues, setEditValues] = useState({ descricao: '', valor: '' });
+  const [editValues, setEditValues] = useState({ descricao: '', valor: '', categoria_id: '' });
 
   if (!mes) return null;
 
@@ -64,19 +80,23 @@ export default function FinanceiroDetalheModal({ mes, open, onClose }: Financeir
   };
 
   const handleAddGasto = () => {
-    if (!novoGasto.descricao || !novoGasto.valor) return;
-    addGasto({ descricao: novoGasto.descricao, valor: parseFloat(novoGasto.valor) });
-    setNovoGasto({ descricao: '', valor: '' });
+    if (!novoGasto.descricao || !novoGasto.valor || !novoGasto.categoria_id) return;
+    addGasto({ 
+      descricao: novoGasto.descricao, 
+      valor: parseFloat(novoGasto.valor), 
+      categoria_id: novoGasto.categoria_id 
+    });
+    setNovoGasto({ descricao: '', valor: '', categoria_id: '' });
   };
 
   const startEditReceita = (id: string, descricao: string, valor: number) => {
     setEditingReceita(id);
-    setEditValues({ descricao, valor: valor.toString() });
+    setEditValues({ descricao, valor: valor.toString(), categoria_id: '' });
   };
 
-  const startEditGasto = (id: string, descricao: string, valor: number) => {
+  const startEditGasto = (id: string, descricao: string, valor: number, categoria_id: string | null) => {
     setEditingGasto(id);
-    setEditValues({ descricao, valor: valor.toString() });
+    setEditValues({ descricao, valor: valor.toString(), categoria_id: categoria_id || '' });
   };
 
   const saveEditReceita = () => {
@@ -87,23 +107,48 @@ export default function FinanceiroDetalheModal({ mes, open, onClose }: Financeir
   };
 
   const saveEditGasto = () => {
-    if (editingGasto && editValues.descricao && editValues.valor) {
-      updateGasto({ id: editingGasto, descricao: editValues.descricao, valor: parseFloat(editValues.valor) });
+    if (editingGasto && editValues.descricao && editValues.valor && editValues.categoria_id) {
+      updateGasto({ 
+        id: editingGasto, 
+        descricao: editValues.descricao, 
+        valor: parseFloat(editValues.valor),
+        categoria_id: editValues.categoria_id
+      });
       setEditingGasto(null);
+    }
+  };
+
+  const getCategoriaInfo = (categoriaId: string | null) => {
+    if (!categoriaId) return null;
+    const cat = categoriasAtivas.find(c => c.id === categoriaId);
+    return cat;
+  };
+
+  const handleConverterAporte = () => {
+    if (saldoMes > 0 && onConverterAporte) {
+      onConverterAporte(saldoMes, `${MESES[mes.mes - 1]} ${mes.ano}`);
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-xl">
-            {MESES[mes.mes - 1]} {mes.ano}
-          </DialogTitle>
+          <div className="flex items-center justify-between">
+            <DialogTitle className="text-xl">
+              {MESES[mes.mes - 1]} {mes.ano}
+            </DialogTitle>
+            {saldoMes > 0 && onConverterAporte && (
+              <Button variant="outline" size="sm" onClick={handleConverterAporte}>
+                <ArrowRight className="h-4 w-4 mr-2" />
+                Converter saldo em aporte
+              </Button>
+            )}
+          </div>
         </DialogHeader>
 
         {/* Cards de Resumo */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-3 gap-4 mb-4">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -136,7 +181,7 @@ export default function FinanceiroDetalheModal({ mes, open, onClose }: Financeir
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <Wallet className="h-4 w-4 text-primary" />
-                Saldo
+                Saldo do Mês
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -150,7 +195,47 @@ export default function FinanceiroDetalheModal({ mes, open, onClose }: Financeir
           </Card>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Totais por Tipo */}
+        {gastosPorTipo && gastosPorTipo.length > 0 && (
+          <TotaisPorTipoCards gastosPorTipo={gastosPorTipo} />
+        )}
+
+        {/* Limites por Categoria */}
+        {gastosPorCategoria && gastosPorCategoria.length > 0 && (
+          <Card className="mt-4">
+            <CardHeader>
+              <CardTitle className="text-sm font-medium">Limites por Categoria</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {gastosPorCategoria.map((cat) => {
+                const percentual = cat.limite_mensal > 0 
+                  ? (Number(cat.total_gasto) / Number(cat.limite_mensal)) * 100 
+                  : 0;
+                const estourado = percentual > 100;
+                
+                return (
+                  <div key={cat.categoria_id} className="space-y-1">
+                    <div className="flex justify-between text-sm">
+                      <span className="font-medium">{cat.categoria_nome}</span>
+                      <span className={cn(
+                        "font-mono",
+                        estourado ? "text-red-600" : "text-green-600"
+                      )}>
+                        {formatCurrency(Number(cat.total_gasto), 'BRL')} / {formatCurrency(Number(cat.limite_mensal), 'BRL')}
+                      </span>
+                    </div>
+                    <Progress 
+                      value={Math.min(percentual, 100)} 
+                      className={cn("h-2", estourado && "[&>div]:bg-red-500")}
+                    />
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
           {/* Receitas */}
           <div>
             <h3 className="text-lg font-semibold mb-3 text-green-600 flex items-center gap-2">
@@ -269,24 +354,43 @@ export default function FinanceiroDetalheModal({ mes, open, onClose }: Financeir
             </h3>
             
             {/* Form para adicionar */}
-            <div className="flex gap-2 mb-4">
-              <Input
-                placeholder="Descrição"
-                value={novoGasto.descricao}
-                onChange={(e) => setNovoGasto({ ...novoGasto, descricao: e.target.value })}
-                className="flex-1"
-              />
-              <Input
-                type="number"
-                placeholder="Valor"
-                value={novoGasto.valor}
-                onChange={(e) => setNovoGasto({ ...novoGasto, valor: e.target.value })}
-                className="w-28"
-                step="0.01"
-              />
-              <Button size="icon" onClick={handleAddGasto}>
-                <Plus className="h-4 w-4" />
-              </Button>
+            <div className="space-y-2 mb-4">
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Descrição"
+                  value={novoGasto.descricao}
+                  onChange={(e) => setNovoGasto({ ...novoGasto, descricao: e.target.value })}
+                  className="flex-1"
+                />
+                <Input
+                  type="number"
+                  placeholder="Valor"
+                  value={novoGasto.valor}
+                  onChange={(e) => setNovoGasto({ ...novoGasto, valor: e.target.value })}
+                  className="w-28"
+                  step="0.01"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Select
+                  value={novoGasto.categoria_id}
+                  onValueChange={(v) => setNovoGasto({ ...novoGasto, categoria_id: v })}
+                >
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="Selecione categoria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categoriasAtivas.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id}>
+                        {cat.nome} ({TIPOS_CATEGORIA[cat.tipo].label})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button size="icon" onClick={handleAddGasto} disabled={!novoGasto.categoria_id}>
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
 
             {/* Lista */}
@@ -295,73 +399,107 @@ export default function FinanceiroDetalheModal({ mes, open, onClose }: Financeir
                 <TableHeader>
                   <TableRow>
                     <TableHead>Descrição</TableHead>
+                    <TableHead>Categoria</TableHead>
                     <TableHead className="text-right w-28">Valor</TableHead>
                     <TableHead className="w-20"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {gastos?.map((g) => (
-                    <TableRow key={g.id}>
-                      {editingGasto === g.id ? (
-                        <>
-                          <TableCell>
-                            <Input
-                              value={editValues.descricao}
-                              onChange={(e) => setEditValues({ ...editValues, descricao: e.target.value })}
-                              className="h-8"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              type="number"
-                              value={editValues.valor}
-                              onChange={(e) => setEditValues({ ...editValues, valor: e.target.value })}
-                              className="h-8 w-24"
-                              step="0.01"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex gap-1">
-                              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={saveEditGasto}>
-                                <Check className="h-3 w-3 text-green-600" />
-                              </Button>
-                              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditingGasto(null)}>
-                                <X className="h-3 w-3 text-destructive" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </>
-                      ) : (
-                        <>
-                          <TableCell 
-                            className="cursor-pointer"
-                            onClick={() => startEditGasto(g.id, g.descricao, g.valor)}
-                          >
-                            {g.descricao}
-                          </TableCell>
-                          <TableCell 
-                            className="text-right text-red-600 cursor-pointer"
-                            onClick={() => startEditGasto(g.id, g.descricao, g.valor)}
-                          >
-                            {formatCurrency(Number(g.valor), 'BRL')}
-                          </TableCell>
-                          <TableCell>
-                            <Button 
-                              size="icon" 
-                              variant="ghost" 
-                              className="h-7 w-7"
-                              onClick={() => deleteGasto(g.id)}
+                  {gastos?.map((g) => {
+                    const categoriaInfo = getCategoriaInfo(g.categoria_id);
+                    return (
+                      <TableRow key={g.id}>
+                        {editingGasto === g.id ? (
+                          <>
+                            <TableCell>
+                              <Input
+                                value={editValues.descricao}
+                                onChange={(e) => setEditValues({ ...editValues, descricao: e.target.value })}
+                                className="h-8"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Select
+                                value={editValues.categoria_id}
+                                onValueChange={(v) => setEditValues({ ...editValues, categoria_id: v })}
+                              >
+                                <SelectTrigger className="h-8">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {categoriasAtivas.map((cat) => (
+                                    <SelectItem key={cat.id} value={cat.id}>
+                                      {cat.nome}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type="number"
+                                value={editValues.valor}
+                                onChange={(e) => setEditValues({ ...editValues, valor: e.target.value })}
+                                className="h-8 w-24"
+                                step="0.01"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-1">
+                                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={saveEditGasto}>
+                                  <Check className="h-3 w-3 text-green-600" />
+                                </Button>
+                                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditingGasto(null)}>
+                                  <X className="h-3 w-3 text-destructive" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </>
+                        ) : (
+                          <>
+                            <TableCell 
+                              className="cursor-pointer"
+                              onClick={() => startEditGasto(g.id, g.descricao, g.valor, g.categoria_id)}
                             >
-                              <Trash2 className="h-3 w-3 text-destructive" />
-                            </Button>
-                          </TableCell>
-                        </>
-                      )}
-                    </TableRow>
-                  ))}
+                              {g.descricao}
+                            </TableCell>
+                            <TableCell>
+                              {categoriaInfo && (
+                                <Badge 
+                                  variant="secondary"
+                                  style={{ 
+                                    backgroundColor: TIPOS_CATEGORIA[categoriaInfo.tipo].color + '20', 
+                                    color: TIPOS_CATEGORIA[categoriaInfo.tipo].color 
+                                  }}
+                                >
+                                  {categoriaInfo.nome}
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell 
+                              className="text-right text-red-600 cursor-pointer"
+                              onClick={() => startEditGasto(g.id, g.descricao, g.valor, g.categoria_id)}
+                            >
+                              {formatCurrency(Number(g.valor), 'BRL')}
+                            </TableCell>
+                            <TableCell>
+                              <Button 
+                                size="icon" 
+                                variant="ghost" 
+                                className="h-7 w-7"
+                                onClick={() => deleteGasto(g.id)}
+                              >
+                                <Trash2 className="h-3 w-3 text-destructive" />
+                              </Button>
+                            </TableCell>
+                          </>
+                        )}
+                      </TableRow>
+                    );
+                  })}
                   {!gastos?.length && (
                     <TableRow>
-                      <TableCell colSpan={3} className="text-center text-muted-foreground py-4">
+                      <TableCell colSpan={4} className="text-center text-muted-foreground py-4">
                         Nenhum gasto cadastrado
                       </TableCell>
                     </TableRow>
@@ -371,6 +509,13 @@ export default function FinanceiroDetalheModal({ mes, open, onClose }: Financeir
             </div>
           </div>
         </div>
+
+        {/* Gráfico de Gastos por Tipo */}
+        {gastosPorTipo && gastosPorTipo.length > 0 && (
+          <div className="mt-6">
+            <GastosPorTipoChart gastosPorTipo={gastosPorTipo} />
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

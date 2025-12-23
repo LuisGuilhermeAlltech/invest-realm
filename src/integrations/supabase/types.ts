@@ -177,8 +177,42 @@ export type Database = {
           },
         ]
       }
+      categorias_financeiras: {
+        Row: {
+          ativa: boolean
+          created_at: string | null
+          id: string
+          limite_mensal: number
+          nome: string
+          tipo: Database["public"]["Enums"]["tipo_categoria_financeira"]
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          ativa?: boolean
+          created_at?: string | null
+          id?: string
+          limite_mensal?: number
+          nome: string
+          tipo: Database["public"]["Enums"]["tipo_categoria_financeira"]
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          ativa?: boolean
+          created_at?: string | null
+          id?: string
+          limite_mensal?: number
+          nome?: string
+          tipo?: Database["public"]["Enums"]["tipo_categoria_financeira"]
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       financeiro_gastos: {
         Row: {
+          categoria_id: string | null
           created_at: string | null
           descricao: string
           financeiro_mensal_id: string
@@ -188,6 +222,7 @@ export type Database = {
           valor: number
         }
         Insert: {
+          categoria_id?: string | null
           created_at?: string | null
           descricao: string
           financeiro_mensal_id: string
@@ -197,6 +232,7 @@ export type Database = {
           valor?: number
         }
         Update: {
+          categoria_id?: string | null
           created_at?: string | null
           descricao?: string
           financeiro_mensal_id?: string
@@ -206,6 +242,20 @@ export type Database = {
           valor?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "financeiro_gastos_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "categorias_financeiras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financeiro_gastos_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "vw_gastos_por_categoria"
+            referencedColumns: ["categoria_id"]
+          },
           {
             foreignKeyName: "financeiro_gastos_financeiro_mensal_id_fkey"
             columns: ["financeiro_mensal_id"]
@@ -226,6 +276,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_financeiro_mensal_resumo"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financeiro_gastos_financeiro_mensal_id_fkey"
+            columns: ["financeiro_mensal_id"]
+            isOneToOne: false
+            referencedRelation: "vw_gastos_por_categoria"
+            referencedColumns: ["financeiro_mensal_id"]
+          },
+          {
+            foreignKeyName: "financeiro_gastos_financeiro_mensal_id_fkey"
+            columns: ["financeiro_mensal_id"]
+            isOneToOne: false
+            referencedRelation: "vw_gastos_por_tipo"
+            referencedColumns: ["financeiro_mensal_id"]
           },
         ]
       }
@@ -308,6 +372,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_financeiro_mensal_resumo"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financeiro_receitas_financeiro_mensal_id_fkey"
+            columns: ["financeiro_mensal_id"]
+            isOneToOne: false
+            referencedRelation: "vw_gastos_por_categoria"
+            referencedColumns: ["financeiro_mensal_id"]
+          },
+          {
+            foreignKeyName: "financeiro_receitas_financeiro_mensal_id_fkey"
+            columns: ["financeiro_mensal_id"]
+            isOneToOne: false
+            referencedRelation: "vw_gastos_por_tipo"
+            referencedColumns: ["financeiro_mensal_id"]
           },
         ]
       }
@@ -642,6 +720,36 @@ export type Database = {
         }
         Relationships: []
       }
+      vw_gastos_por_categoria: {
+        Row: {
+          ano: number | null
+          categoria_id: string | null
+          categoria_nome: string | null
+          categoria_tipo:
+            | Database["public"]["Enums"]["tipo_categoria_financeira"]
+            | null
+          financeiro_mensal_id: string | null
+          limite_mensal: number | null
+          mes: number | null
+          saldo_categoria: number | null
+          total_gasto: number | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
+      vw_gastos_por_tipo: {
+        Row: {
+          ano: number | null
+          categoria_tipo:
+            | Database["public"]["Enums"]["tipo_categoria_financeira"]
+            | null
+          financeiro_mensal_id: string | null
+          mes: number | null
+          total_gasto: number | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
       vw_posicao_por_ativo: {
         Row: {
           ativo_id: string | null
@@ -720,6 +828,7 @@ export type Database = {
     Enums: {
       classe_ativo: "renda_fixa" | "fii" | "acoes_br" | "acoes_eua" | "cripto"
       moeda: "BRL" | "USD"
+      tipo_categoria_financeira: "essencial" | "nao_essencial" | "lazer"
       tipo_movimentacao: "compra" | "venda" | "aporte" | "saque"
       tipo_provento: "dividendo" | "jcp" | "rendimento" | "outros"
       tipo_transacao_caixa:
@@ -858,6 +967,7 @@ export const Constants = {
     Enums: {
       classe_ativo: ["renda_fixa", "fii", "acoes_br", "acoes_eua", "cripto"],
       moeda: ["BRL", "USD"],
+      tipo_categoria_financeira: ["essencial", "nao_essencial", "lazer"],
       tipo_movimentacao: ["compra", "venda", "aporte", "saque"],
       tipo_provento: ["dividendo", "jcp", "rendimento", "outros"],
       tipo_transacao_caixa: [
