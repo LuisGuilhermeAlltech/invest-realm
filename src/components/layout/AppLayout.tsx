@@ -15,6 +15,7 @@ import {
   X,
   TrendingUp,
   Wallet,
+  Calculator,
 } from 'lucide-react';
 
 interface AppLayoutProps {
@@ -28,6 +29,7 @@ const navItems = [
   { path: '/movimentacoes', label: 'Movimentações', icon: ArrowLeftRight },
   { path: '/proventos', label: 'Proventos', icon: Coins },
   { path: '/metas', label: 'Metas', icon: Target },
+  { path: '/financeiro', label: 'Financeiro', icon: Calculator },
   { path: '/cadastros', label: 'Cadastros', icon: Settings },
 ];
 
