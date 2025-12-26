@@ -185,6 +185,7 @@ export type Database = {
           limite_mensal: number
           nome: string
           tipo: Database["public"]["Enums"]["tipo_categoria_financeira"]
+          tipo_id: string | null
           updated_at: string | null
           user_id: string
         }
@@ -195,6 +196,7 @@ export type Database = {
           limite_mensal?: number
           nome: string
           tipo: Database["public"]["Enums"]["tipo_categoria_financeira"]
+          tipo_id?: string | null
           updated_at?: string | null
           user_id: string
         }
@@ -205,10 +207,19 @@ export type Database = {
           limite_mensal?: number
           nome?: string
           tipo?: Database["public"]["Enums"]["tipo_categoria_financeira"]
+          tipo_id?: string | null
           updated_at?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "categorias_financeiras_tipo_id_fkey"
+            columns: ["tipo_id"]
+            isOneToOne: false
+            referencedRelation: "tipos_gasto"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       financeiro_gastos: {
         Row: {
@@ -622,6 +633,36 @@ export type Database = {
           },
         ]
       }
+      tipos_gasto: {
+        Row: {
+          ativo: boolean | null
+          created_at: string | null
+          id: string
+          nome: string
+          ordem: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          created_at?: string | null
+          id?: string
+          nome: string
+          ordem?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          ativo?: boolean | null
+          created_at?: string | null
+          id?: string
+          nome?: string
+          ordem?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       vw_carteira_atual: {
@@ -732,10 +773,20 @@ export type Database = {
           limite_mensal: number | null
           mes: number | null
           saldo_categoria: number | null
+          tipo_id: string | null
+          tipo_nome: string | null
           total_gasto: number | null
           user_id: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "categorias_financeiras_tipo_id_fkey"
+            columns: ["tipo_id"]
+            isOneToOne: false
+            referencedRelation: "tipos_gasto"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       vw_gastos_por_tipo: {
         Row: {
@@ -745,10 +796,20 @@ export type Database = {
             | null
           financeiro_mensal_id: string | null
           mes: number | null
+          tipo_id: string | null
+          tipo_nome: string | null
           total_gasto: number | null
           user_id: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "categorias_financeiras_tipo_id_fkey"
+            columns: ["tipo_id"]
+            isOneToOne: false
+            referencedRelation: "tipos_gasto"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       vw_posicao_por_ativo: {
         Row: {
