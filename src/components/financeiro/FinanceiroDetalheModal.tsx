@@ -27,7 +27,8 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Plus, Trash2, Check, X, TrendingUp, TrendingDown, Wallet, ArrowRight } from 'lucide-react';
 import { FinanceiroMensal, useFinanceiroDetalhe } from '@/hooks/useFinanceiroMensal';
-import { useCategoriasFinanceiras, useGastosPorCategoria, useGastosPorTipo, TIPOS_CATEGORIA } from '@/hooks/useCategoriasFinanceiras';
+import { useCategoriasFinanceiras, useGastosPorCategoria, useGastosPorTipo } from '@/hooks/useCategoriasFinanceiras';
+import { useTiposGasto } from '@/hooks/useTiposGasto';
 import { GastosPorTipoChart, TotaisPorTipoCards } from './FinanceiroCharts';
 import { formatCurrency } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
@@ -382,7 +383,7 @@ export default function FinanceiroDetalheModal({ mes, open, onClose, onConverter
                   <SelectContent>
                     {categoriasAtivas.map((cat) => (
                       <SelectItem key={cat.id} value={cat.id}>
-                        {cat.nome} ({TIPOS_CATEGORIA[cat.tipo].label})
+                        {cat.nome}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -465,13 +466,7 @@ export default function FinanceiroDetalheModal({ mes, open, onClose, onConverter
                             </TableCell>
                             <TableCell>
                               {categoriaInfo && (
-                                <Badge 
-                                  variant="secondary"
-                                  style={{ 
-                                    backgroundColor: TIPOS_CATEGORIA[categoriaInfo.tipo].color + '20', 
-                                    color: TIPOS_CATEGORIA[categoriaInfo.tipo].color 
-                                  }}
-                                >
+                                <Badge variant="secondary">
                                   {categoriaInfo.nome}
                                 </Badge>
                               )}

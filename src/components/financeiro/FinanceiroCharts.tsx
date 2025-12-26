@@ -1,10 +1,19 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { FinanceiroMensal } from '@/hooks/useFinanceiroMensal';
-import { GastoPorTipo, TIPOS_CATEGORIA, TipoCategoriaFinanceira } from '@/hooks/useCategoriasFinanceiras';
+import { GastoPorTipo } from '@/hooks/useCategoriasFinanceiras';
 import { formatCurrency } from '@/lib/formatters';
 
 const MESES_CURTOS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+// Color palette for types
+const CHART_COLORS = [
+  'hsl(var(--chart-1))',
+  'hsl(var(--chart-2))',
+  'hsl(var(--chart-3))',
+  'hsl(var(--chart-4))',
+  'hsl(var(--chart-5))',
+];
 
 interface FinanceiroChartsProps {
   meses: FinanceiroMensal[];
@@ -64,11 +73,11 @@ export function ReceitasGastosChart({ meses }: { meses: FinanceiroMensal[] }) {
 
 export function GastosPorTipoChart({ gastosPorTipo }: { gastosPorTipo: GastoPorTipo[] }) {
   const chartData = gastosPorTipo
-    .filter(g => Number(g.total_gasto) > 0)
-    .map((g) => ({
-      name: TIPOS_CATEGORIA[g.categoria_tipo as TipoCategoriaFinanceira]?.label || g.categoria_tipo,
+    .filter(g => Number(g.total_gasto) > 0 && g.tipo_nome)
+    .map((g, index) => ({
+      name: g.tipo_nome || 'Sem tipo',
       value: Number(g.total_gasto),
-      color: TIPOS_CATEGORIA[g.categoria_tipo as TipoCategoriaFinanceira]?.color || 'hsl(var(--muted))',
+      color: CHART_COLORS[index % CHART_COLORS.length],
     }));
 
   if (!chartData.length) {
@@ -127,22 +136,29 @@ export function GastosPorTipoChart({ gastosPorTipo }: { gastosPorTipo: GastoPorT
 }
 
 export function TotaisPorTipoCards({ gastosPorTipo }: { gastosPorTipo: GastoPorTipo[] }) {
-  const totais = Object.entries(TIPOS_CATEGORIA).map(([tipo, config]) => {
-    const gasto = gastosPorTipo.find(g => g.categoria_tipo === tipo);
-    return {
-      tipo,
-      label: config.label,
-      color: config.color,
-      total: gasto ? Number(gasto.total_gasto) : 0,
-    };
-  });
+  // Group by tipo_nome and sum totals
+  const totaisByTipo = gastosPorTipo.reduce((acc, g) => {
+    const tipoNome = g.tipo_nome || 'Sem tipo';
+    acc[tipoNome] = (acc[tipoNome] || 0) + Number(g.total_gasto);
+    return acc;
+  }, {} as Record<string, number>);
+
+  const totais = Object.entries(totaisByTipo).map(([nome, total], index) => ({
+    nome,
+    total,
+    color: CHART_COLORS[index % CHART_COLORS.length],
+  }));
+
+  if (!totais.length) {
+    return null;
+  }
 
   return (
     <div className="grid grid-cols-3 gap-4">
       {totais.map((t) => (
-        <Card key={t.tipo}>
+        <Card key={t.nome}>
           <CardContent className="pt-4">
-            <div className="text-sm text-muted-foreground">{t.label}</div>
+            <div className="text-sm text-muted-foreground">{t.nome}</div>
             <div 
               className="text-xl font-bold mt-1"
               style={{ color: t.color }}

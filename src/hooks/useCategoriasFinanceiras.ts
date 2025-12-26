@@ -3,13 +3,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
-export type TipoCategoriaFinanceira = 'essencial' | 'nao_essencial' | 'lazer';
-
 export interface CategoriaFinanceira {
   id: string;
   user_id: string;
   nome: string;
-  tipo: TipoCategoriaFinanceira;
+  tipo: string | null; // Kept for backwards compatibility
+  tipo_id: string | null;
   limite_mensal: number;
   ativa: boolean;
   created_at: string | null;
@@ -23,7 +22,9 @@ export interface GastoPorCategoria {
   mes: number;
   categoria_id: string;
   categoria_nome: string;
-  categoria_tipo: TipoCategoriaFinanceira;
+  categoria_tipo: string | null;
+  tipo_id: string | null;
+  tipo_nome: string | null;
   limite_mensal: number;
   total_gasto: number;
   saldo_categoria: number;
@@ -34,15 +35,11 @@ export interface GastoPorTipo {
   financeiro_mensal_id: string;
   ano: number;
   mes: number;
-  categoria_tipo: TipoCategoriaFinanceira;
+  tipo_id: string | null;
+  tipo_nome: string | null;
+  categoria_tipo: string | null;
   total_gasto: number;
 }
-
-export const TIPOS_CATEGORIA: Record<TipoCategoriaFinanceira, { label: string; color: string }> = {
-  essencial: { label: 'Essencial', color: 'hsl(var(--chart-1))' },
-  nao_essencial: { label: 'Não Essencial', color: 'hsl(var(--chart-3))' },
-  lazer: { label: 'Lazer', color: 'hsl(var(--chart-4))' },
-};
 
 export function useCategoriasFinanceiras() {
   const { user } = useAuth();
@@ -64,10 +61,17 @@ export function useCategoriasFinanceiras() {
   });
 
   const createCategoria = useMutation({
-    mutationFn: async (categoria: Omit<CategoriaFinanceira, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
+    mutationFn: async (categoria: { nome: string; tipo_id: string | null; limite_mensal: number; ativa: boolean }) => {
       const { data, error } = await supabase
         .from('categorias_financeiras')
-        .insert({ ...categoria, user_id: user!.id })
+        .insert({ 
+          nome: categoria.nome,
+          tipo: 'essencial' as const, // Required by DB but deprecated
+          tipo_id: categoria.tipo_id,
+          limite_mensal: categoria.limite_mensal,
+          ativa: categoria.ativa,
+          user_id: user!.id 
+        })
         .select()
         .single();
       
@@ -76,6 +80,7 @@ export function useCategoriasFinanceiras() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categorias-financeiras'] });
+      queryClient.invalidateQueries({ queryKey: ['gastos-por-categoria'] });
       toast({ title: 'Categoria criada com sucesso!' });
     },
     onError: (error: Error) => {
@@ -84,7 +89,13 @@ export function useCategoriasFinanceiras() {
   });
 
   const updateCategoria = useMutation({
-    mutationFn: async ({ id, ...updates }: Partial<CategoriaFinanceira> & { id: string }) => {
+    mutationFn: async ({ id, nome, tipo_id, limite_mensal, ativa }: { id: string; nome?: string; tipo_id?: string | null; limite_mensal?: number; ativa?: boolean }) => {
+      const updates: Record<string, unknown> = {};
+      if (nome !== undefined) updates.nome = nome;
+      if (tipo_id !== undefined) updates.tipo_id = tipo_id;
+      if (limite_mensal !== undefined) updates.limite_mensal = limite_mensal;
+      if (ativa !== undefined) updates.ativa = ativa;
+      
       const { error } = await supabase
         .from('categorias_financeiras')
         .update(updates)
@@ -94,6 +105,8 @@ export function useCategoriasFinanceiras() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categorias-financeiras'] });
+      queryClient.invalidateQueries({ queryKey: ['gastos-por-categoria'] });
+      queryClient.invalidateQueries({ queryKey: ['gastos-por-tipo'] });
       toast({ title: 'Categoria atualizada!' });
     },
     onError: (error: Error) => {
