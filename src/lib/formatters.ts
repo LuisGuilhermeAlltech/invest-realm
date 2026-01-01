@@ -19,7 +19,9 @@ export function formatNumber(value: number, decimals: number = 2): string {
 }
 
 export function formatDate(date: string): string {
-  return new Date(date).toLocaleDateString('pt-BR');
+  // Evita problema de timezone: interpreta a data como local, não UTC
+  const [year, month, day] = date.split('-').map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString('pt-BR');
 }
 
 export function formatDateTime(date: string): string {
