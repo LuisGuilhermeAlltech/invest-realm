@@ -22,16 +22,22 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  Alert,
+  AlertDescription,
+} from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Plus, Trash2, Check, X, TrendingUp, TrendingDown, Wallet, ArrowRight } from 'lucide-react';
+import { Plus, Trash2, Check, X, TrendingUp, TrendingDown, Wallet, ArrowRight, AlertTriangle } from 'lucide-react';
 import { FinanceiroMensal, useFinanceiroDetalhe } from '@/hooks/useFinanceiroMensal';
 import { useCategoriasFinanceiras, useGastosPorCategoria, useGastosPorTipo } from '@/hooks/useCategoriasFinanceiras';
 import { useTiposGasto } from '@/hooks/useTiposGasto';
-import { GastosPorTipoChart, TotaisPorTipoCards } from './FinanceiroCharts';
+import { useGastosPorCategoriaComLimites, checkLimiteExcedido } from '@/hooks/useLimitesTipoGasto';
+import { GastosPorTipoChart, TotaisPorTipoCardsComLimites } from './FinanceiroCharts';
 import { formatCurrency } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -61,12 +67,19 @@ export default function FinanceiroDetalheModal({ mes, open, onClose, onConverter
   const { categoriasAtivas } = useCategoriasFinanceiras();
   const { data: gastosPorCategoria } = useGastosPorCategoria(mes?.id || null);
   const { data: gastosPorTipo } = useGastosPorTipo(mes?.id || null);
+  const { gastosTipoComLimites } = useGastosPorCategoriaComLimites(
+    mes?.id || null,
+    mes?.ano || new Date().getFullYear(),
+    mes?.mes || new Date().getMonth() + 1
+  );
+  const { toast } = useToast();
 
   const [novaReceita, setNovaReceita] = useState({ descricao: '', valor: '' });
   const [novoGasto, setNovoGasto] = useState({ descricao: '', valor: '', categoria_id: '' });
   const [editingReceita, setEditingReceita] = useState<string | null>(null);
   const [editingGasto, setEditingGasto] = useState<string | null>(null);
   const [editValues, setEditValues] = useState({ descricao: '', valor: '', categoria_id: '' });
+  const [limiteWarning, setLimiteWarning] = useState<{ tipo: string; percentual: number } | null>(null);
 
   if (!mes) return null;
 
@@ -82,9 +95,37 @@ export default function FinanceiroDetalheModal({ mes, open, onClose, onConverter
 
   const handleAddGasto = () => {
     if (!novoGasto.descricao || !novoGasto.valor || !novoGasto.categoria_id) return;
+    
+    const valor = parseFloat(novoGasto.valor);
+    
+    // Get the categoria_tipo from the selected category
+    const selectedCategoria = categoriasAtivas.find(c => c.id === novoGasto.categoria_id);
+    if (selectedCategoria && selectedCategoria.tipo_id) {
+      // Find tipo info
+      const tipoInfo = gastosTipoComLimites.find(g => {
+        // Match by tipo name since we don't have direct access to tipo_id mapping here
+        const cat = categoriasAtivas.find(c => c.tipo_id === selectedCategoria.tipo_id);
+        return cat && g.tipo_nome;
+      });
+      
+      // Check if adding this gasto would exceed the limit
+      if (tipoInfo && tipoInfo.limite_mensal > 0) {
+        const totalApos = tipoInfo.total_gasto + valor;
+        const percentualApos = (totalApos / tipoInfo.limite_mensal) * 100;
+        
+        if (percentualApos >= 90) {
+          toast({
+            title: percentualApos >= 100 ? '⚠️ Limite ultrapassado!' : '⚠️ Limite próximo',
+            description: `${tipoInfo.tipo_nome}: ${formatCurrency(totalApos, 'BRL')} de ${formatCurrency(tipoInfo.limite_mensal, 'BRL')} (${percentualApos.toFixed(0)}%)`,
+            variant: percentualApos >= 100 ? 'destructive' : 'default',
+          });
+        }
+      }
+    }
+    
     addGasto({ 
       descricao: novoGasto.descricao, 
-      valor: parseFloat(novoGasto.valor), 
+      valor, 
       categoria_id: novoGasto.categoria_id 
     });
     setNovoGasto({ descricao: '', valor: '', categoria_id: '' });
@@ -196,9 +237,9 @@ export default function FinanceiroDetalheModal({ mes, open, onClose, onConverter
           </Card>
         </div>
 
-        {/* Totais por Tipo */}
-        {gastosPorTipo && gastosPorTipo.length > 0 && (
-          <TotaisPorTipoCards gastosPorTipo={gastosPorTipo} />
+        {/* Totais por Tipo com Limites */}
+        {gastosTipoComLimites && gastosTipoComLimites.length > 0 && (
+          <TotaisPorTipoCardsComLimites gastosTipoComLimites={gastosTipoComLimites} />
         )}
 
         {/* Limites por Categoria */}
