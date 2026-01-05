@@ -57,17 +57,27 @@ export function useLimitesTipoGasto(ano: number, mes: number) {
 
   const upsertLimite = useMutation({
     mutationFn: async ({ tipo, limite_mensal }: { tipo: TipoCategoria; limite_mensal: number }) => {
-      // Check if limit already exists
-      const existingLimite = limites?.find(l => l.tipo === tipo);
+      // Query directly to check if limit exists (don't rely on stale state)
+      const { data: existingData, error: fetchError } = await supabase
+        .from('limites_tipo_gasto')
+        .select('id')
+        .eq('tipo', tipo)
+        .eq('ano', ano)
+        .eq('mes', mes)
+        .maybeSingle();
       
-      if (existingLimite) {
+      if (fetchError) throw fetchError;
+      
+      if (existingData) {
+        // Update existing
         const { error } = await supabase
           .from('limites_tipo_gasto')
           .update({ limite_mensal })
-          .eq('id', existingLimite.id);
+          .eq('id', existingData.id);
         
         if (error) throw error;
       } else {
+        // Insert new
         const { error } = await supabase
           .from('limites_tipo_gasto')
           .insert({ 
