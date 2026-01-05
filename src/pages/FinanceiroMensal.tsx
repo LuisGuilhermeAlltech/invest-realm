@@ -26,14 +26,16 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, ChevronRight, Trash2, TrendingUp, TrendingDown, Wallet, Tags, AlertCircle } from 'lucide-react';
+import { Plus, ChevronRight, Trash2, TrendingUp, TrendingDown, Wallet, Tags, AlertCircle, Settings } from 'lucide-react';
 import { useFinanceiroMensal } from '@/hooks/useFinanceiroMensal';
-import { useCategoriasFinanceiras, useGastosPorTipo } from '@/hooks/useCategoriasFinanceiras';
-import { ReceitasGastosChart, TotaisPorTipoCards } from '@/components/financeiro/FinanceiroCharts';
+import { useCategoriasFinanceiras } from '@/hooks/useCategoriasFinanceiras';
+import { useGastosPorCategoriaComLimites } from '@/hooks/useLimitesTipoGasto';
+import { ReceitasGastosChart, TotaisPorTipoCardsComLimites } from '@/components/financeiro/FinanceiroCharts';
 import { formatCurrency } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 import FinanceiroDetalheModal from '@/components/financeiro/FinanceiroDetalheModal';
 import CategoriasModal from '@/components/financeiro/CategoriasModal';
+import LimitesTipoModal from '@/components/financeiro/LimitesTipoModal';
 import { useToast } from '@/hooks/use-toast';
 
 const MESES = [
@@ -49,13 +51,18 @@ export default function FinanceiroMensal() {
   
   const [novoMesOpen, setNovoMesOpen] = useState(false);
   const [categoriasOpen, setCategoriasOpen] = useState(false);
+  const [limitesTipoOpen, setLimitesTipoOpen] = useState(false);
   const [selectedMesId, setSelectedMesId] = useState<string | null>(null);
   const [ano, setAno] = useState(new Date().getFullYear());
   const [mes, setMes] = useState(new Date().getMonth() + 1);
 
-  // Get gastos por tipo for the last month (for the summary cards)
+  // Get gastos por tipo with limits for the last month
   const ultimoMes = meses?.[0];
-  const { data: gastosPorTipoUltimoMes } = useGastosPorTipo(ultimoMes?.id || null);
+  const { gastosTipoComLimites } = useGastosPorCategoriaComLimites(
+    ultimoMes?.id || null,
+    ultimoMes?.ano || new Date().getFullYear(),
+    ultimoMes?.mes || new Date().getMonth() + 1
+  );
 
   const handleCreateMes = () => {
     createMes({ ano, mes });
@@ -112,6 +119,13 @@ export default function FinanceiroMensal() {
             <Tags className="h-4 w-4 mr-2" />
             Categorias
           </Button>
+
+          {ultimoMes && (
+            <Button variant="outline" onClick={() => setLimitesTipoOpen(true)}>
+              <Settings className="h-4 w-4 mr-2" />
+              Limites
+            </Button>
+          )}
           
           <Dialog open={novoMesOpen} onOpenChange={setNovoMesOpen}>
             <DialogTrigger asChild>
@@ -223,13 +237,13 @@ export default function FinanceiroMensal() {
         </Card>
       </div>
 
-      {/* Totais por Tipo do Último Mês */}
-      {gastosPorTipoUltimoMes && gastosPorTipoUltimoMes.length > 0 && (
+      {/* Totais por Tipo do Último Mês com Limites */}
+      {gastosTipoComLimites && gastosTipoComLimites.length > 0 && (
         <div>
           <h3 className="text-sm font-medium text-muted-foreground mb-2">
             Gastos por Tipo - {ultimoMes && `${MESES[ultimoMes.mes - 1]} ${ultimoMes.ano}`}
           </h3>
-          <TotaisPorTipoCards gastosPorTipo={gastosPorTipoUltimoMes} />
+          <TotaisPorTipoCardsComLimites gastosTipoComLimites={gastosTipoComLimites} />
         </div>
       )}
 
@@ -331,6 +345,16 @@ export default function FinanceiroMensal() {
         open={categoriasOpen}
         onClose={() => setCategoriasOpen(false)}
       />
+
+      {/* Modal de Limites por Tipo */}
+      {ultimoMes && (
+        <LimitesTipoModal
+          open={limitesTipoOpen}
+          onClose={() => setLimitesTipoOpen(false)}
+          ano={ultimoMes.ano}
+          mes={ultimoMes.mes}
+        />
+      )}
     </div>
   );
 }

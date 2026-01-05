@@ -1,8 +1,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { FinanceiroMensal } from '@/hooks/useFinanceiroMensal';
 import { GastoPorTipo } from '@/hooks/useCategoriasFinanceiras';
+import { GastoTipoComLimite } from '@/hooks/useLimitesTipoGasto';
 import { formatCurrency } from '@/lib/formatters';
+import { cn } from '@/lib/utils';
 
 const MESES_CURTOS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
@@ -135,6 +138,67 @@ export function GastosPorTipoChart({ gastosPorTipo }: { gastosPorTipo: GastoPorT
   );
 }
 
+// Get color class based on percentage
+function getPercentualColor(percentual: number): string {
+  if (percentual >= 90) return 'text-red-600';
+  if (percentual >= 70) return 'text-amber-600';
+  return 'text-green-600';
+}
+
+function getProgressColor(percentual: number): string {
+  if (percentual >= 90) return '[&>div]:bg-red-500';
+  if (percentual >= 70) return '[&>div]:bg-amber-500';
+  return '[&>div]:bg-green-500';
+}
+
+// Updated component with limits
+export function TotaisPorTipoCardsComLimites({ gastosTipoComLimites }: { gastosTipoComLimites: GastoTipoComLimite[] }) {
+  if (!gastosTipoComLimites.length) {
+    return null;
+  }
+
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {gastosTipoComLimites.map((t, index) => {
+        const percentual = t.percentual;
+        const colorClass = getPercentualColor(percentual);
+        const progressClass = getProgressColor(percentual);
+
+        return (
+          <Card key={t.categoria_tipo || index}>
+            <CardContent className="pt-4">
+              <div className="text-sm text-muted-foreground font-medium">{t.tipo_nome}</div>
+              <div className={cn("text-xl font-bold mt-1", colorClass)}>
+                {formatCurrency(t.total_gasto, 'BRL')}
+              </div>
+              {t.limite_mensal > 0 && (
+                <>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Limite: {formatCurrency(t.limite_mensal, 'BRL')}
+                  </div>
+                  <Progress 
+                    value={Math.min(percentual, 100)} 
+                    className={cn("h-1.5 mt-2", progressClass)}
+                  />
+                  <div className={cn("text-xs font-medium mt-1", colorClass)}>
+                    {percentual.toFixed(0)}% utilizado
+                  </div>
+                </>
+              )}
+              {t.limite_mensal === 0 && (
+                <div className="text-xs text-muted-foreground mt-1">
+                  Sem limite definido
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+// Legacy component for backwards compatibility
 export function TotaisPorTipoCards({ gastosPorTipo }: { gastosPorTipo: GastoPorTipo[] }) {
   // Group by tipo_nome and sum totals
   const totaisByTipo = gastosPorTipo.reduce((acc, g) => {

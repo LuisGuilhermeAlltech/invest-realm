@@ -400,6 +400,39 @@ export type Database = {
           },
         ]
       }
+      limites_tipo_gasto: {
+        Row: {
+          ano: number
+          created_at: string | null
+          id: string
+          limite_mensal: number
+          mes: number
+          tipo: Database["public"]["Enums"]["tipo_categoria_financeira"]
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          ano: number
+          created_at?: string | null
+          id?: string
+          limite_mensal?: number
+          mes: number
+          tipo: Database["public"]["Enums"]["tipo_categoria_financeira"]
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          ano?: number
+          created_at?: string | null
+          id?: string
+          limite_mensal?: number
+          mes?: number
+          tipo?: Database["public"]["Enums"]["tipo_categoria_financeira"]
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       metas_alocacao: {
         Row: {
           ativo: boolean | null
@@ -889,7 +922,11 @@ export type Database = {
     Enums: {
       classe_ativo: "renda_fixa" | "fii" | "acoes_br" | "acoes_eua" | "cripto"
       moeda: "BRL" | "USD"
-      tipo_categoria_financeira: "essencial" | "nao_essencial" | "lazer"
+      tipo_categoria_financeira:
+        | "essencial"
+        | "nao_essencial"
+        | "lazer"
+        | "investimentos"
       tipo_movimentacao: "compra" | "venda" | "aporte" | "saque"
       tipo_provento: "dividendo" | "jcp" | "rendimento" | "outros"
       tipo_transacao_caixa:
@@ -1028,7 +1065,12 @@ export const Constants = {
     Enums: {
       classe_ativo: ["renda_fixa", "fii", "acoes_br", "acoes_eua", "cripto"],
       moeda: ["BRL", "USD"],
-      tipo_categoria_financeira: ["essencial", "nao_essencial", "lazer"],
+      tipo_categoria_financeira: [
+        "essencial",
+        "nao_essencial",
+        "lazer",
+        "investimentos",
+      ],
       tipo_movimentacao: ["compra", "venda", "aporte", "saque"],
       tipo_provento: ["dividendo", "jcp", "rendimento", "outros"],
       tipo_transacao_caixa: [
