@@ -33,7 +33,7 @@ import { Plus, Trash2, Check, X, TrendingUp, TrendingDown, Wallet, ArrowRight, A
 import { FinanceiroMensal, useFinanceiroDetalhe } from '@/hooks/useFinanceiroMensal';
 import { useCategoriasFinanceiras, useGastosPorCategoria, useGastosPorTipo } from '@/hooks/useCategoriasFinanceiras';
 import { useTiposGasto } from '@/hooks/useTiposGasto';
-import { useGastosPorCategoriaComLimites, checkLimiteExcedido } from '@/hooks/useLimitesTipoGasto';
+import { useGastosPorCategoriaComLimites } from '@/hooks/useLimitesTipoGasto';
 import { GastosPorTipoChart, TotaisPorTipoCardsComLimites } from './FinanceiroCharts';
 import { formatCurrency } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
@@ -98,15 +98,11 @@ export default function FinanceiroDetalheModal({ mes, open, onClose, onConverter
     
     const valor = parseFloat(novoGasto.valor);
     
-    // Get the categoria_tipo from the selected category
+    // Get the tipo_id from the selected category
     const selectedCategoria = categoriasAtivas.find(c => c.id === novoGasto.categoria_id);
     if (selectedCategoria && selectedCategoria.tipo_id) {
-      // Find tipo info
-      const tipoInfo = gastosTipoComLimites.find(g => {
-        // Match by tipo name since we don't have direct access to tipo_id mapping here
-        const cat = categoriasAtivas.find(c => c.tipo_id === selectedCategoria.tipo_id);
-        return cat && g.tipo_nome;
-      });
+      // Find tipo info by matching tipo_id
+      const tipoInfo = gastosTipoComLimites.find(g => g.tipo_id === selectedCategoria.tipo_id);
       
       // Check if adding this gasto would exceed the limit
       if (tipoInfo && tipoInfo.limite_mensal > 0) {

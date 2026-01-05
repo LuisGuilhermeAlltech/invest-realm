@@ -29,17 +29,23 @@ interface LimitesTipoModalProps {
 }
 
 export default function LimitesTipoModal({ open, onClose, ano, mes }: LimitesTipoModalProps) {
-  const { limites, upsertLimite, getLimiteByTipo } = useLimitesTipoGasto(ano, mes);
+  const { limites, upsertLimite } = useLimitesTipoGasto(ano, mes);
   const [values, setValues] = useState<Record<TipoCategoria, string>>({
     essencial: '',
     nao_essencial: '',
     lazer: '',
     investimentos: '',
   });
+  const [initialized, setInitialized] = useState(false);
 
-  // Initialize values when limites load
+  // Get limite from limites array
+  const getLimiteFromArray = (tipo: TipoCategoria): number => {
+    return limites?.find(l => l.tipo === tipo)?.limite_mensal || 0;
+  };
+
+  // Initialize values when limites load (only once)
   useEffect(() => {
-    if (limites) {
+    if (limites && !initialized) {
       const newValues: Record<TipoCategoria, string> = {
         essencial: '',
         nao_essencial: '',
@@ -48,13 +54,21 @@ export default function LimitesTipoModal({ open, onClose, ano, mes }: LimitesTip
       };
       
       for (const tipo of ALL_TIPOS_CATEGORIA) {
-        const limite = getLimiteByTipo(tipo);
+        const limite = limites.find(l => l.tipo === tipo)?.limite_mensal || 0;
         newValues[tipo] = limite > 0 ? limite.toString() : '';
       }
       
       setValues(newValues);
+      setInitialized(true);
     }
-  }, [limites, getLimiteByTipo]);
+  }, [limites, initialized]);
+
+  // Reset initialized when modal opens/closes or month changes
+  useEffect(() => {
+    if (!open) {
+      setInitialized(false);
+    }
+  }, [open, ano, mes]);
 
   const handleSave = (tipo: TipoCategoria) => {
     const valor = parseFloat(values[tipo]) || 0;
@@ -94,14 +108,14 @@ export default function LimitesTipoModal({ open, onClose, ano, mes }: LimitesTip
                 <Button 
                   variant="outline" 
                   onClick={() => handleSave(tipo)}
-                  disabled={values[tipo] === '' || parseFloat(values[tipo]) === getLimiteByTipo(tipo)}
+                  disabled={values[tipo] === '' || parseFloat(values[tipo]) === getLimiteFromArray(tipo)}
                 >
                   Salvar
                 </Button>
               </div>
-              {getLimiteByTipo(tipo) > 0 && (
+              {getLimiteFromArray(tipo) > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  Limite atual: {formatCurrency(getLimiteByTipo(tipo), 'BRL')}
+                  Limite atual: {formatCurrency(getLimiteFromArray(tipo), 'BRL')}
                 </p>
               )}
             </div>

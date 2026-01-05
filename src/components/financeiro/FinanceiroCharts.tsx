@@ -165,7 +165,7 @@ export function TotaisPorTipoCardsComLimites({ gastosTipoComLimites }: { gastosT
         const progressClass = getProgressColor(percentual);
 
         return (
-          <Card key={t.categoria_tipo || index}>
+          <Card key={t.tipo_id || t.tipo_nome || index}>
             <CardContent className="pt-4">
               <div className="text-sm text-muted-foreground font-medium">{t.tipo_nome}</div>
               <div className={cn("text-xl font-bold mt-1", colorClass)}>
