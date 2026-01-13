@@ -353,6 +353,44 @@ export type Database = {
           },
         ]
       }
+      contas_saldo_pagamentos: {
+        Row: {
+          conta_pagar_id: string
+          created_at: string | null
+          data: string
+          descricao: string | null
+          id: string
+          user_id: string
+          valor: number
+        }
+        Insert: {
+          conta_pagar_id: string
+          created_at?: string | null
+          data?: string
+          descricao?: string | null
+          id?: string
+          user_id: string
+          valor: number
+        }
+        Update: {
+          conta_pagar_id?: string
+          created_at?: string | null
+          data?: string
+          descricao?: string | null
+          id?: string
+          user_id?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contas_saldo_pagamentos_conta_pagar_id_fkey"
+            columns: ["conta_pagar_id"]
+            isOneToOne: false
+            referencedRelation: "contas_a_pagar"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       financeiro_gastos: {
         Row: {
           categoria_id: string | null
