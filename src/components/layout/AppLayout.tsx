@@ -16,6 +16,7 @@ import {
   TrendingUp,
   Wallet,
   Calculator,
+  CreditCard,
 } from 'lucide-react';
 
 interface AppLayoutProps {
@@ -30,6 +31,7 @@ const navItems = [
   { path: '/proventos', label: 'Proventos', icon: Coins },
   { path: '/metas', label: 'Metas', icon: Target },
   { path: '/financeiro', label: 'Financeiro', icon: Calculator },
+  { path: '/contas-a-pagar', label: 'Contas a Pagar', icon: CreditCard },
   { path: '/cadastros', label: 'Cadastros', icon: Settings },
 ];
 

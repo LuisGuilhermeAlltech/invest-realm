@@ -14,6 +14,7 @@ import Proventos from "@/pages/Proventos";
 import Metas from "@/pages/Metas";
 import Cadastros from "@/pages/Cadastros";
 import FinanceiroMensal from "@/pages/FinanceiroMensal";
+import ContasAPagar from "@/pages/ContasAPagar";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -39,6 +40,7 @@ function AppRoutes() {
       <Route path="/proventos" element={<ProtectedRoute><Proventos /></ProtectedRoute>} />
       <Route path="/metas" element={<ProtectedRoute><Metas /></ProtectedRoute>} />
       <Route path="/financeiro" element={<ProtectedRoute><FinanceiroMensal /></ProtectedRoute>} />
+      <Route path="/contas-a-pagar" element={<ProtectedRoute><ContasAPagar /></ProtectedRoute>} />
       <Route path="/cadastros" element={<ProtectedRoute><Cadastros /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
