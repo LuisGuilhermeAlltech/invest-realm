@@ -6,11 +6,19 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { StatusContaAPagar, TipoContaAPagar, TIPO_CONTA_LABELS, STATUS_CONTA_LABELS } from '@/types/contasAPagar';
+import { 
+  StatusContaAPagar, 
+  TipoContaAPagar, 
+  ModoContaAPagar,
+  TIPO_CONTA_LABELS, 
+  MODO_CONTA_LABELS 
+} from '@/types/contasAPagar';
 
 interface ContasAPagarFiltrosProps {
   statusFiltro: StatusContaAPagar | 'todos';
   setStatusFiltro: (value: StatusContaAPagar | 'todos') => void;
+  modoFiltro: ModoContaAPagar | 'todos';
+  setModoFiltro: (value: ModoContaAPagar | 'todos') => void;
   tipoFiltro: TipoContaAPagar | 'todos';
   setTipoFiltro: (value: TipoContaAPagar | 'todos') => void;
   instituicaoFiltro: string;
@@ -21,6 +29,8 @@ interface ContasAPagarFiltrosProps {
 export function ContasAPagarFiltros({
   statusFiltro,
   setStatusFiltro,
+  modoFiltro,
+  setModoFiltro,
   tipoFiltro,
   setTipoFiltro,
   instituicaoFiltro,
@@ -42,6 +52,26 @@ export function ContasAPagarFiltros({
             <SelectItem value="ativo">Ativas</SelectItem>
             <SelectItem value="quitado">Quitadas</SelectItem>
             <SelectItem value="todos">Todas</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-1">
+        <Label className="text-xs">Modo</Label>
+        <Select
+          value={modoFiltro}
+          onValueChange={(value) => setModoFiltro(value as ModoContaAPagar | 'todos')}
+        >
+          <SelectTrigger className="w-[140px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos</SelectItem>
+            {Object.entries(MODO_CONTA_LABELS).map(([value, label]) => (
+              <SelectItem key={value} value={value}>
+                {label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>

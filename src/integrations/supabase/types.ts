@@ -232,59 +232,74 @@ export type Database = {
         Row: {
           conta_id: string | null
           created_at: string | null
-          data_inicio: string
+          data_inicio: string | null
           descricao: string
           dia_vencimento: number
           id: string
           instituicao: string
+          meta_pagamento: number | null
+          modo: string
           observacoes: string | null
+          pagamento_minimo: number | null
           parcela_atual: number
+          saldo_atual: number | null
+          saldo_ultima_atualizacao: string | null
           status: string
           tipo: string
-          total_parcelas: number
+          total_parcelas: number | null
           ultima_baixa_competencia: string | null
           updated_at: string | null
           user_id: string
-          valor_parcela: number
-          valor_total: number
+          valor_parcela: number | null
+          valor_total: number | null
         }
         Insert: {
           conta_id?: string | null
           created_at?: string | null
-          data_inicio: string
+          data_inicio?: string | null
           descricao: string
           dia_vencimento: number
           id?: string
           instituicao: string
+          meta_pagamento?: number | null
+          modo?: string
           observacoes?: string | null
+          pagamento_minimo?: number | null
           parcela_atual?: number
+          saldo_atual?: number | null
+          saldo_ultima_atualizacao?: string | null
           status?: string
           tipo: string
-          total_parcelas: number
+          total_parcelas?: number | null
           ultima_baixa_competencia?: string | null
           updated_at?: string | null
           user_id: string
-          valor_parcela: number
-          valor_total: number
+          valor_parcela?: number | null
+          valor_total?: number | null
         }
         Update: {
           conta_id?: string | null
           created_at?: string | null
-          data_inicio?: string
+          data_inicio?: string | null
           descricao?: string
           dia_vencimento?: number
           id?: string
           instituicao?: string
+          meta_pagamento?: number | null
+          modo?: string
           observacoes?: string | null
+          pagamento_minimo?: number | null
           parcela_atual?: number
+          saldo_atual?: number | null
+          saldo_ultima_atualizacao?: string | null
           status?: string
           tipo?: string
-          total_parcelas?: number
+          total_parcelas?: number | null
           ultima_baixa_competencia?: string | null
           updated_at?: string | null
           user_id?: string
-          valor_parcela?: number
-          valor_total?: number
+          valor_parcela?: number | null
+          valor_total?: number | null
         }
         Relationships: [
           {
@@ -299,6 +314,41 @@ export type Database = {
             columns: ["conta_id"]
             isOneToOne: false
             referencedRelation: "vw_saldo_contas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contas_saldo_historico: {
+        Row: {
+          competencia: string
+          conta_pagar_id: string
+          created_at: string | null
+          id: string
+          saldo: number
+          user_id: string
+        }
+        Insert: {
+          competencia: string
+          conta_pagar_id: string
+          created_at?: string | null
+          id?: string
+          saldo: number
+          user_id: string
+        }
+        Update: {
+          competencia?: string
+          conta_pagar_id?: string
+          created_at?: string | null
+          id?: string
+          saldo?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contas_saldo_historico_conta_pagar_id_fkey"
+            columns: ["conta_pagar_id"]
+            isOneToOne: false
+            referencedRelation: "contas_a_pagar"
             referencedColumns: ["id"]
           },
         ]
