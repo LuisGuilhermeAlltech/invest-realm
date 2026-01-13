@@ -18,10 +18,12 @@ export default function ContasAPagar() {
     updateConta,
     quitarConta,
     atualizarSaldo,
+    adicionarPagamento,
     isCreating,
     isUpdating,
     isQuiting,
     isAtualizandoSaldo,
+    isAdicionandoPagamento,
     instituicoes,
     resumo,
   } = useContasAPagar();
@@ -88,6 +90,10 @@ export default function ContasAPagar() {
     atualizarSaldo({ id, novoSaldo });
   };
 
+  const handleAdicionarPagamento = (id: string, valor: number, descricao: string, data: string) => {
+    adicionarPagamento({ id, valor, descricao, data });
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -149,8 +155,10 @@ export default function ContasAPagar() {
         onEdit={handleEdit}
         onQuitar={quitarConta}
         onAtualizarSaldo={handleAtualizarSaldo}
+        onAdicionarPagamento={handleAdicionarPagamento}
         isQuiting={isQuiting}
         isAtualizandoSaldo={isAtualizandoSaldo}
+        isAdicionandoPagamento={isAdicionandoPagamento}
       />
 
       {/* Modal */}

@@ -217,6 +217,88 @@ export function useContasAPagar() {
     },
   });
 
+  // Adicionar pagamento (para modo saldo - subtrai do saldo atual)
+  const adicionarPagamentoMutation = useMutation({
+    mutationFn: async ({ id, valor, descricao, data }: { id: string; valor: number; descricao?: string; data: string }) => {
+      if (!user) throw new Error('Usuário não autenticado');
+
+      // Buscar saldo atual da conta
+      const { data: conta, error: contaError } = await supabase
+        .from('contas_a_pagar')
+        .select('saldo_atual')
+        .eq('id', id)
+        .single();
+
+      if (contaError) throw contaError;
+
+      const saldoAtual = conta.saldo_atual || 0;
+      const novoSaldo = Math.max(saldoAtual - valor, 0);
+
+      // Registrar o pagamento
+      const { error: pagError } = await supabase
+        .from('contas_saldo_pagamentos')
+        .insert({
+          user_id: user.id,
+          conta_pagar_id: id,
+          valor,
+          descricao: descricao || null,
+          data,
+        });
+
+      if (pagError) throw pagError;
+
+      const competenciaAtual = getCompetenciaAtual();
+
+      // Atualizar histórico de saldo
+      const { error: histError } = await supabase
+        .from('contas_saldo_historico')
+        .upsert({
+          user_id: user.id,
+          conta_pagar_id: id,
+          competencia: competenciaAtual,
+          saldo: novoSaldo,
+        }, {
+          onConflict: 'conta_pagar_id,competencia',
+        });
+
+      if (histError) throw histError;
+
+      // Atualizar a conta principal
+      const updateData: { saldo_atual: number; saldo_ultima_atualizacao: string; status?: string } = {
+        saldo_atual: novoSaldo,
+        saldo_ultima_atualizacao: new Date().toISOString(),
+      };
+
+      // Se o saldo zerou, quitar automaticamente
+      if (novoSaldo === 0) {
+        updateData.status = 'quitado';
+      }
+
+      const { data: updatedConta, error } = await supabase
+        .from('contas_a_pagar')
+        .update(updateData)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return updatedConta;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['contas_a_pagar', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['contas_saldo_historico', user?.id] });
+      if (data.status === 'quitado') {
+        toast.success('Pagamento registrado! Conta quitada automaticamente.');
+      } else {
+        toast.success('Pagamento registrado com sucesso!');
+      }
+    },
+    onError: (error) => {
+      console.error('Erro ao adicionar pagamento:', error);
+      toast.error('Erro ao adicionar pagamento');
+    },
+  });
+
   // Criar conta
   const createMutation = useMutation({
     mutationFn: async (novaConta: Partial<ContaAPagar>) => {
@@ -366,11 +448,13 @@ export function useContasAPagar() {
     quitarConta: quitarMutation.mutate,
     deleteConta: deleteMutation.mutate,
     atualizarSaldo: atualizarSaldoMutation.mutate,
+    adicionarPagamento: adicionarPagamentoMutation.mutate,
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
     isQuiting: quitarMutation.isPending,
     isDeleting: deleteMutation.isPending,
     isAtualizandoSaldo: atualizarSaldoMutation.isPending,
+    isAdicionandoPagamento: adicionarPagamentoMutation.isPending,
     instituicoes,
     resumo: {
       totalEmAberto,
