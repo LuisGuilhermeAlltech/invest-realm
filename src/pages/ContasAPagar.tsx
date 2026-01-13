@@ -6,7 +6,7 @@ import { ContasAPagarResumo } from '@/components/contasAPagar/ContasAPagarResumo
 import { ContasAPagarFiltros } from '@/components/contasAPagar/ContasAPagarFiltros';
 import { ContasAPagarTable } from '@/components/contasAPagar/ContasAPagarTable';
 import { ContaAPagarModal } from '@/components/contasAPagar/ContaAPagarModal';
-import { ContaAPagarComCalculos, StatusContaAPagar, TipoContaAPagar } from '@/types/contasAPagar';
+import { ContaAPagarComCalculos, StatusContaAPagar, TipoContaAPagar, ModoContaAPagar } from '@/types/contasAPagar';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function ContasAPagar() {
@@ -17,9 +17,11 @@ export default function ContasAPagar() {
     createConta,
     updateConta,
     quitarConta,
+    atualizarSaldo,
     isCreating,
     isUpdating,
     isQuiting,
+    isAtualizandoSaldo,
     instituicoes,
     resumo,
   } = useContasAPagar();
@@ -30,6 +32,7 @@ export default function ContasAPagar() {
 
   // Filtros
   const [statusFiltro, setStatusFiltro] = useState<StatusContaAPagar | 'todos'>('ativo');
+  const [modoFiltro, setModoFiltro] = useState<ModoContaAPagar | 'todos'>('todos');
   const [tipoFiltro, setTipoFiltro] = useState<TipoContaAPagar | 'todos'>('todos');
   const [instituicaoFiltro, setInstituicaoFiltro] = useState<string>('todos');
 
@@ -50,6 +53,11 @@ export default function ContasAPagar() {
       resultado = resultado.filter((c) => c.status === statusFiltro);
     }
 
+    // Filtro de modo
+    if (modoFiltro !== 'todos') {
+      resultado = resultado.filter((c) => c.modo === modoFiltro);
+    }
+
     // Filtro de tipo
     if (tipoFiltro !== 'todos') {
       resultado = resultado.filter((c) => c.tipo === tipoFiltro);
@@ -64,7 +72,7 @@ export default function ContasAPagar() {
     resultado.sort((a, b) => b.valor_restante - a.valor_restante);
 
     return resultado;
-  }, [contasAPagar, statusFiltro, tipoFiltro, instituicaoFiltro]);
+  }, [contasAPagar, statusFiltro, modoFiltro, tipoFiltro, instituicaoFiltro]);
 
   const handleEdit = (conta: ContaAPagarComCalculos) => {
     setContaEditando(conta);
@@ -76,6 +84,10 @@ export default function ContasAPagar() {
     setContaEditando(null);
   };
 
+  const handleAtualizarSaldo = (id: string, novoSaldo: number) => {
+    atualizarSaldo({ id, novoSaldo });
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -83,7 +95,8 @@ export default function ContasAPagar() {
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-10 w-40" />
         </div>
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-4">
+          <Skeleton className="h-28" />
           <Skeleton className="h-28" />
           <Skeleton className="h-28" />
           <Skeleton className="h-28" />
@@ -100,7 +113,7 @@ export default function ContasAPagar() {
         <div>
           <h1 className="text-2xl font-bold">Contas a Pagar</h1>
           <p className="text-sm text-muted-foreground">
-            Controle de parcelas e empréstimos
+            Controle de parcelas, empréstimos e saldos
           </p>
         </div>
         <Button onClick={() => setModalOpen(true)}>
@@ -114,12 +127,15 @@ export default function ContasAPagar() {
         totalEmAberto={resumo.totalEmAberto}
         compromissoMensal={resumo.compromissoMensal}
         qtdAtivas={resumo.qtdAtivas}
+        variacaoTotalMes={resumo.variacaoTotalMes}
       />
 
       {/* Filtros */}
       <ContasAPagarFiltros
         statusFiltro={statusFiltro}
         setStatusFiltro={setStatusFiltro}
+        modoFiltro={modoFiltro}
+        setModoFiltro={setModoFiltro}
         tipoFiltro={tipoFiltro}
         setTipoFiltro={setTipoFiltro}
         instituicaoFiltro={instituicaoFiltro}
@@ -132,7 +148,9 @@ export default function ContasAPagar() {
         contas={contasFiltradas}
         onEdit={handleEdit}
         onQuitar={quitarConta}
+        onAtualizarSaldo={handleAtualizarSaldo}
         isQuiting={isQuiting}
+        isAtualizandoSaldo={isAtualizandoSaldo}
       />
 
       {/* Modal */}
