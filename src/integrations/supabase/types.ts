@@ -228,6 +228,81 @@ export type Database = {
           },
         ]
       }
+      contas_a_pagar: {
+        Row: {
+          conta_id: string | null
+          created_at: string | null
+          data_inicio: string
+          descricao: string
+          dia_vencimento: number
+          id: string
+          instituicao: string
+          observacoes: string | null
+          parcela_atual: number
+          status: string
+          tipo: string
+          total_parcelas: number
+          ultima_baixa_competencia: string | null
+          updated_at: string | null
+          user_id: string
+          valor_parcela: number
+          valor_total: number
+        }
+        Insert: {
+          conta_id?: string | null
+          created_at?: string | null
+          data_inicio: string
+          descricao: string
+          dia_vencimento: number
+          id?: string
+          instituicao: string
+          observacoes?: string | null
+          parcela_atual?: number
+          status?: string
+          tipo: string
+          total_parcelas: number
+          ultima_baixa_competencia?: string | null
+          updated_at?: string | null
+          user_id: string
+          valor_parcela: number
+          valor_total: number
+        }
+        Update: {
+          conta_id?: string | null
+          created_at?: string | null
+          data_inicio?: string
+          descricao?: string
+          dia_vencimento?: number
+          id?: string
+          instituicao?: string
+          observacoes?: string | null
+          parcela_atual?: number
+          status?: string
+          tipo?: string
+          total_parcelas?: number
+          ultima_baixa_competencia?: string | null
+          updated_at?: string | null
+          user_id?: string
+          valor_parcela?: number
+          valor_total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contas_a_pagar_conta_id_fkey"
+            columns: ["conta_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contas_a_pagar_conta_id_fkey"
+            columns: ["conta_id"]
+            isOneToOne: false
+            referencedRelation: "vw_saldo_contas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       financeiro_gastos: {
         Row: {
           categoria_id: string | null
