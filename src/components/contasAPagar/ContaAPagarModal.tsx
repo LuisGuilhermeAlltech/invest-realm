@@ -206,14 +206,14 @@ export function ContaAPagarModal({
             <div className="space-y-2">
               <Label htmlFor="conta_id">Conta/Cartão (opcional)</Label>
               <Select
-                value={formData.conta_id}
-                onValueChange={(value) => setFormData({ ...formData, conta_id: value })}
+                value={formData.conta_id || '__none__'}
+                onValueChange={(value) => setFormData({ ...formData, conta_id: value === '__none__' ? '' : value })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione uma conta" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nenhuma</SelectItem>
+                  <SelectItem value="__none__">Nenhuma</SelectItem>
                   {accounts.map((account) => (
                     <SelectItem key={account.id} value={account.id}>
                       {account.nome} ({account.moeda})
