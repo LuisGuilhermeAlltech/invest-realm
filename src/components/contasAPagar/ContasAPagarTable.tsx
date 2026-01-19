@@ -25,7 +25,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Pencil, CheckCircle2, MoreHorizontal, TrendingUp, TrendingDown, Minus, DollarSign, RefreshCw } from 'lucide-react';
+import { Pencil, CheckCircle2, MoreHorizontal, TrendingUp, TrendingDown, Minus, DollarSign, RefreshCw, PlusCircle } from 'lucide-react';
 import { ContaAPagarComCalculos, MODO_CONTA_LABELS } from '@/types/contasAPagar';
 import { formatCurrency } from '@/lib/formatters';
 import { format } from 'date-fns';
@@ -54,21 +54,23 @@ export function ContasAPagarTable({
 }: ContasAPagarTableProps) {
   const [saldoModalOpen, setSaldoModalOpen] = useState(false);
   const [contaSelecionada, setContaSelecionada] = useState<ContaAPagarComCalculos | null>(null);
-  const [modalTab, setModalTab] = useState<'pagamento' | 'saldo'>('pagamento');
+  const [modalTab, setModalTab] = useState<'pagamento' | 'saldo' | 'adicionar'>('pagamento');
   
   // Form states
   const [novoSaldo, setNovoSaldo] = useState('');
   const [valorPagamento, setValorPagamento] = useState('');
   const [descricaoPagamento, setDescricaoPagamento] = useState('');
   const [dataPagamento, setDataPagamento] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [valorAdicionar, setValorAdicionar] = useState('');
 
-  const handleAbrirModal = (conta: ContaAPagarComCalculos, tab: 'pagamento' | 'saldo') => {
+  const handleAbrirModal = (conta: ContaAPagarComCalculos, tab: 'pagamento' | 'saldo' | 'adicionar') => {
     setContaSelecionada(conta);
     setModalTab(tab);
     setNovoSaldo(conta.saldo_atual?.toString() || '0');
     setValorPagamento('');
     setDescricaoPagamento('');
     setDataPagamento(format(new Date(), 'yyyy-MM-dd'));
+    setValorAdicionar('');
     setSaldoModalOpen(true);
   };
 
@@ -91,6 +93,18 @@ export function ContasAPagarTable({
         descricaoPagamento,
         dataPagamento
       );
+      setSaldoModalOpen(false);
+      setContaSelecionada(null);
+    }
+  };
+
+  const handleConfirmarAdicionar = () => {
+    if (contaSelecionada && onAtualizarSaldo) {
+      const valorAdd = parseFloat(valorAdicionar) || 0;
+      if (valorAdd <= 0) return;
+      
+      const novoSaldoCalculado = (contaSelecionada.saldo_atual || 0) + valorAdd;
+      onAtualizarSaldo(contaSelecionada.id, novoSaldoCalculado);
       setSaldoModalOpen(false);
       setContaSelecionada(null);
     }
@@ -227,11 +241,15 @@ export function ContasAPagarTable({
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => handleAbrirModal(conta, 'pagamento')}>
                             <DollarSign className="h-4 w-4 mr-2" />
-                            Adicionar Pagamento
+                            Registrar Pagamento
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleAbrirModal(conta, 'adicionar')}>
+                            <PlusCircle className="h-4 w-4 mr-2" />
+                            Adicionar ao Saldo
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleAbrirModal(conta, 'saldo')}>
                             <RefreshCw className="h-4 w-4 mr-2" />
-                            Novo Saldo
+                            Definir Saldo
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -268,15 +286,19 @@ export function ContasAPagarTable({
             <DialogTitle>{contaSelecionada?.descricao}</DialogTitle>
           </DialogHeader>
           
-          <Tabs value={modalTab} onValueChange={(v) => setModalTab(v as 'pagamento' | 'saldo')}>
-            <TabsList className="grid w-full grid-cols-2">
+          <Tabs value={modalTab} onValueChange={(v) => setModalTab(v as 'pagamento' | 'saldo' | 'adicionar')}>
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="pagamento">
-                <DollarSign className="h-4 w-4 mr-2" />
-                Pagamento
+                <DollarSign className="h-4 w-4 mr-1" />
+                Pagar
+              </TabsTrigger>
+              <TabsTrigger value="adicionar">
+                <PlusCircle className="h-4 w-4 mr-1" />
+                Adicionar
               </TabsTrigger>
               <TabsTrigger value="saldo">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Novo Saldo
+                <RefreshCw className="h-4 w-4 mr-1" />
+                Definir
               </TabsTrigger>
             </TabsList>
             
@@ -328,6 +350,38 @@ export function ContasAPagarTable({
               )}
             </TabsContent>
             
+            <TabsContent value="adicionar" className="space-y-4 pt-4">
+              <p className="text-sm text-muted-foreground">
+                Saldo atual: <strong>{formatCurrency(contaSelecionada?.saldo_atual || 0, 'BRL')}</strong>
+              </p>
+              
+              <div className="space-y-2">
+                <Label htmlFor="valorAdicionar">Valor a Adicionar *</Label>
+                <Input
+                  id="valorAdicionar"
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={valorAdicionar}
+                  onChange={(e) => setValorAdicionar(e.target.value)}
+                  placeholder="R$ 0,00"
+                  autoFocus
+                />
+              </div>
+
+              {valorAdicionar && parseFloat(valorAdicionar) > 0 && (
+                <p className="text-sm text-muted-foreground">
+                  Novo saldo: <strong className="text-destructive">
+                    {formatCurrency((contaSelecionada?.saldo_atual || 0) + parseFloat(valorAdicionar), 'BRL')}
+                  </strong>
+                </p>
+              )}
+              
+              <p className="text-xs text-muted-foreground">
+                Use para registrar uma nova dívida ou aumento no saldo (ex: nova compra no cartão).
+              </p>
+            </TabsContent>
+
             <TabsContent value="saldo" className="space-y-4 pt-4">
               <p className="text-sm text-muted-foreground">
                 Saldo atual: <strong>{formatCurrency(contaSelecionada?.saldo_atual || 0, 'BRL')}</strong>
@@ -347,7 +401,7 @@ export function ContasAPagarTable({
               </div>
               
               <p className="text-xs text-muted-foreground">
-                Use esta opção para definir o saldo atual diretamente (ex: após conferir a fatura).
+                Use para definir o saldo exato (ex: após conferir a fatura).
               </p>
             </TabsContent>
           </Tabs>
@@ -356,16 +410,25 @@ export function ContasAPagarTable({
             <Button variant="outline" onClick={() => setSaldoModalOpen(false)}>
               Cancelar
             </Button>
-            {modalTab === 'pagamento' ? (
+            {modalTab === 'pagamento' && (
               <Button 
                 onClick={handleConfirmarPagamento} 
                 disabled={isProcessing || !valorPagamento || parseFloat(valorPagamento) <= 0}
               >
                 {isAdicionandoPagamento ? 'Registrando...' : 'Registrar Pagamento'}
               </Button>
-            ) : (
+            )}
+            {modalTab === 'adicionar' && (
+              <Button 
+                onClick={handleConfirmarAdicionar} 
+                disabled={isProcessing || !valorAdicionar || parseFloat(valorAdicionar) <= 0}
+              >
+                {isAtualizandoSaldo ? 'Adicionando...' : 'Adicionar ao Saldo'}
+              </Button>
+            )}
+            {modalTab === 'saldo' && (
               <Button onClick={handleConfirmarSaldo} disabled={isProcessing}>
-                {isAtualizandoSaldo ? 'Atualizando...' : 'Atualizar Saldo'}
+                {isAtualizandoSaldo ? 'Atualizando...' : 'Definir Saldo'}
               </Button>
             )}
           </DialogFooter>
