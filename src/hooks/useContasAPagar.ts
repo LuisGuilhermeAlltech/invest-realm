@@ -46,12 +46,30 @@ export function useContasAPagar() {
     enabled: !!user,
   });
 
+  // Função para calcular parcela atual baseada na data de início
+  const calcularParcelaAtualPorData = (dataInicio: string | null, totalParcelas: number): number => {
+    if (!dataInicio) return 1;
+    
+    const inicio = new Date(dataInicio);
+    const hoje = new Date();
+    
+    // Calcular quantos meses se passaram desde o início
+    const mesesPassados = (hoje.getFullYear() - inicio.getFullYear()) * 12 + (hoje.getMonth() - inicio.getMonth());
+    
+    // A parcela atual é o número de meses passados + 1 (pois a primeira parcela é no mês de início)
+    const parcelaCalculada = Math.min(mesesPassados + 1, totalParcelas);
+    
+    return Math.max(parcelaCalculada, 1);
+  };
+
   // Função para calcular campos derivados
   const calcularCamposDerivados = (conta: ContaAPagar): ContaAPagarComCalculos => {
     if (conta.modo === 'parcelada') {
       const totalParcelas = conta.total_parcelas || 0;
-      const parcelaAtual = conta.parcela_atual || 0;
       const valorParcela = conta.valor_parcela || 0;
+      
+      // Calcular parcela atual baseada na data de início
+      const parcelaAtual = calcularParcelaAtualPorData(conta.data_inicio, totalParcelas);
       
       const parcelas_restantes = Math.max(totalParcelas - parcelaAtual, 0);
       const valor_restante = parcelas_restantes * valorParcela;
