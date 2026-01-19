@@ -7,7 +7,7 @@ import {
   ContaAPagarComCalculos, 
   ContaSaldoHistorico,
 } from '@/types/contasAPagar';
-import { startOfMonth, format, endOfMonth, subMonths } from 'date-fns';
+import { startOfMonth, format, endOfMonth, subMonths, parseISO, differenceInMonths } from 'date-fns';
 
 function getVencimentoDoMes(ano: number, mes: number, diaVencimento: number): Date {
   const ultimoDiaMes = endOfMonth(new Date(ano, mes - 1)).getDate();
@@ -50,11 +50,12 @@ export function useContasAPagar() {
   const calcularParcelaAtualPorData = (dataInicio: string | null, totalParcelas: number): number => {
     if (!dataInicio) return 1;
     
-    const inicio = new Date(dataInicio);
-    const hoje = new Date();
+    // Usar parseISO para evitar problemas de timezone
+    const inicio = startOfMonth(parseISO(dataInicio));
+    const hoje = startOfMonth(new Date());
     
-    // Calcular quantos meses se passaram desde o início
-    const mesesPassados = (hoje.getFullYear() - inicio.getFullYear()) * 12 + (hoje.getMonth() - inicio.getMonth());
+    // Calcular diferença em meses usando date-fns
+    const mesesPassados = differenceInMonths(hoje, inicio);
     
     // A parcela atual é o número de meses passados + 1 (pois a primeira parcela é no mês de início)
     const parcelaCalculada = Math.min(mesesPassados + 1, totalParcelas);
