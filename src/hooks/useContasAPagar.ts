@@ -48,7 +48,7 @@ export function useContasAPagar() {
 
   // Função para calcular parcela atual baseada na data de início
   const calcularParcelaAtualPorData = (dataInicio: string | null, totalParcelas: number): number => {
-    if (!dataInicio) return 1;
+    if (!dataInicio) return 0;
     
     // Usar parseISO para evitar problemas de timezone
     const inicio = startOfMonth(parseISO(dataInicio));
@@ -57,10 +57,12 @@ export function useContasAPagar() {
     // Calcular diferença em meses usando date-fns
     const mesesPassados = differenceInMonths(hoje, inicio);
     
-    // A parcela atual é o número de meses passados + 1 (pois a primeira parcela é no mês de início)
-    const parcelaCalculada = Math.min(mesesPassados + 1, totalParcelas);
+    // Se a data de início é no futuro, ainda não há parcelas pagas
+    if (mesesPassados < 0) return 0;
     
-    return Math.max(parcelaCalculada, 1);
+    // A parcela atual é o número de meses passados + 1 (pois a primeira parcela é no mês de início)
+    // Limitado ao total de parcelas
+    return Math.min(mesesPassados + 1, totalParcelas);
   };
 
   // Função para calcular campos derivados
