@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   Sheet,
   SheetContent,
@@ -7,11 +8,13 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useAgenteAporte } from '@/hooks/useAgenteAporte';
 import { AgentInputPerAsset, ASSET_TYPE_LABELS, VALUATION_TYPE_LABELS, AgentAction } from '@/types/agenteAporte';
 import { Moeda } from '@/types/database';
 import { formatCurrency } from '@/lib/formatters';
-import { TrendingUp, Clock, XCircle, Edit, PlusCircle, RefreshCw, AlertCircle } from 'lucide-react';
+import { TrendingUp, Clock, XCircle, Edit, PlusCircle, RefreshCw, AlertCircle, Save } from 'lucide-react';
 
 interface Props {
   open: boolean;
@@ -28,15 +31,56 @@ const ACTION_CONFIG: Record<AgentAction, { label: string; color: string; icon: R
 };
 
 export function AtivoDetalhesDrawer({ open, onClose, asset, onAddValuation, onEditMapping }: Props) {
-  const { calculateDecision, syncMarketData, isSyncingMarket } = useAgenteAporte();
+  const { calculateDecision, syncMarketData, isSyncingMarket, saveManualRate, saveManualPrice } = useAgenteAporte();
   const decision = calculateDecision(asset);
   const config = ACTION_CONFIG[decision.action];
   const Icon = config.icon;
+
+  // Manual rate input for renda fixa
+  const [manualRate, setManualRate] = useState<string>(
+    asset.current_rate_manual?.toString() || ''
+  );
+  const [isSavingRate, setIsSavingRate] = useState(false);
+
+  // Manual price input for crypto fallback
+  const [manualPrice, setManualPrice] = useState<string>(
+    asset.manual_price?.toString() || ''
+  );
+  const [isSavingPrice, setIsSavingPrice] = useState(false);
 
   const formatDateLocal = (dateStr: string | null) => {
     if (!dateStr) return '—';
     return new Date(dateStr).toLocaleDateString('pt-BR');
   };
+
+  const handleSaveManualRate = () => {
+    const rate = parseFloat(manualRate);
+    if (isNaN(rate)) return;
+    
+    setIsSavingRate(true);
+    saveManualRate({ 
+      asset_code: asset.asset_code, 
+      current_rate: rate 
+    });
+    setTimeout(() => setIsSavingRate(false), 500);
+  };
+
+  const handleSaveManualPrice = () => {
+    const price = parseFloat(manualPrice);
+    if (isNaN(price)) return;
+    
+    setIsSavingPrice(true);
+    saveManualPrice({ 
+      asset_code: asset.asset_code, 
+      price,
+      currency: asset.asset_currency || 'USD'
+    });
+    setTimeout(() => setIsSavingPrice(false), 500);
+  };
+
+  const isRendaFixa = asset.asset_type === 'renda_fixa';
+  const isCripto = asset.asset_type === 'cripto';
+  const needsManualPrice = isCripto && !asset.price_current;
 
   return (
     <Sheet open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -91,7 +135,91 @@ export function AtivoDetalhesDrawer({ open, onClose, asset, onAddValuation, onEd
                       <p className="font-semibold">{decision.metrics.upside_pct.toFixed(1)}%</p>
                     </div>
                   )}
+                  {decision.metrics.target_rate !== undefined && (
+                    <div className="bg-muted rounded-lg p-3">
+                      <p className="text-xs text-muted-foreground">Taxa Alvo</p>
+                      <p className="font-semibold">{decision.metrics.target_rate.toFixed(2)}%</p>
+                    </div>
+                  )}
+                  {decision.metrics.current_rate !== undefined && (
+                    <div className="bg-muted rounded-lg p-3">
+                      <p className="text-xs text-muted-foreground">Taxa Atual</p>
+                      <p className="font-semibold">{decision.metrics.current_rate.toFixed(2)}%</p>
+                    </div>
+                  )}
                 </div>
+              </div>
+              <Separator />
+            </>
+          )}
+
+          {/* Manual Rate Input for Renda Fixa */}
+          {isRendaFixa && asset.valuation_type === 'target_rate' && (
+            <>
+              <div>
+                <h3 className="font-semibold mb-2">Taxa Atual (Manual)</h3>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Informe a taxa atual disponivel para este titulo
+                </p>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="Ex: 12.50"
+                      value={manualRate}
+                      onChange={(e) => setManualRate(e.target.value)}
+                    />
+                  </div>
+                  <Button 
+                    onClick={handleSaveManualRate}
+                    disabled={isSavingRate || !manualRate}
+                    size="icon"
+                  >
+                    <Save className="h-4 w-4" />
+                  </Button>
+                </div>
+                {asset.rate_manual_date && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Ultima atualizacao: {formatDateLocal(asset.rate_manual_date)}
+                  </p>
+                )}
+              </div>
+              <Separator />
+            </>
+          )}
+
+          {/* Manual Price Input for Crypto */}
+          {needsManualPrice && (
+            <>
+              <div>
+                <h3 className="font-semibold mb-2">Preco Atual (Manual)</h3>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Informe o preco manualmente (API indisponivel)
+                </p>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="Ex: 50000.00"
+                      value={manualPrice}
+                      onChange={(e) => setManualPrice(e.target.value)}
+                    />
+                  </div>
+                  <Button 
+                    onClick={handleSaveManualPrice}
+                    disabled={isSavingPrice || !manualPrice}
+                    size="icon"
+                  >
+                    <Save className="h-4 w-4" />
+                  </Button>
+                </div>
+                {asset.manual_price_date && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Ultima atualizacao: {formatDateLocal(asset.manual_price_date)}
+                  </p>
+                )}
               </div>
               <Separator />
             </>
@@ -108,7 +236,7 @@ export function AtivoDetalhesDrawer({ open, onClose, asset, onAddValuation, onEd
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Data:</span>
-                <span>{formatDateLocal(asset.price_date)}</span>
+                <span>{formatDateLocal(asset.price_date || asset.manual_price_date)}</span>
               </div>
             </div>
           </div>
@@ -133,6 +261,12 @@ export function AtivoDetalhesDrawer({ open, onClose, asset, onAddValuation, onEd
                     <span className="font-medium">{formatCurrency(asset.fair_value, (asset.valuation_currency || 'BRL') as Moeda)}</span>
                   </div>
                 )}
+                {asset.target_rate && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Taxa Alvo:</span>
+                    <span className="font-medium">{asset.target_rate.toFixed(2)}%</span>
+                  </div>
+                )}
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">Nenhum valuation cadastrado</p>
@@ -150,10 +284,12 @@ export function AtivoDetalhesDrawer({ open, onClose, asset, onAddValuation, onEd
               <Edit className="h-4 w-4 mr-2" />
               Editar Mapeamento
             </Button>
-            <Button variant="outline" className="w-full" onClick={() => syncMarketData([asset.asset_code])} disabled={isSyncingMarket}>
-              <RefreshCw className={`h-4 w-4 mr-2 ${isSyncingMarket ? 'animate-spin' : ''}`} />
-              Atualizar Preco
-            </Button>
+            {!isRendaFixa && (
+              <Button variant="outline" className="w-full" onClick={() => syncMarketData([asset.asset_code])} disabled={isSyncingMarket}>
+                <RefreshCw className={`h-4 w-4 mr-2 ${isSyncingMarket ? 'animate-spin' : ''}`} />
+                Atualizar Preco
+              </Button>
+            )}
           </div>
         </div>
       </SheetContent>

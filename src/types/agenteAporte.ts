@@ -64,6 +64,8 @@ export interface AgentInputPerAsset {
   price_date: string | null;
   price_current: number | null;
   price_currency: string | null;
+  manual_price_date: string | null;
+  manual_price: number | null;
   valuation_date: string | null;
   consultoria: string | null;
   valuation_type: string | null;
@@ -77,6 +79,29 @@ export interface AgentInputPerAsset {
   valuation_notes: string | null;
   fx_usdbrl: number | null;
   fx_date: string | null;
+  rate_manual_date: string | null;
+  current_rate_manual: number | null;
+}
+
+export interface PortfolioAsset {
+  ticker: string;
+  classe: string;
+  moeda_base: string;
+  quantidade_total: number;
+}
+
+export interface PendingCounts {
+  sem_mapeamento: number;
+  sem_valuation: number;
+  sem_preco: number;
+}
+
+export interface AssetInference {
+  asset_code: string;
+  inferred_type: string;
+  inferred_currency: string;
+  inferred_symbol: string | null;
+  needs_symbol: boolean;
 }
 
 export type AgentAction = 'comprar' | 'esperar' | 'evitar';
