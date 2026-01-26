@@ -2,32 +2,17 @@ import { useState, useMemo } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import { useAgenteAporte } from '@/hooks/useAgenteAporte';
 import { Card, CardContent } from '@/components/ui/card';
-import { Moeda } from '@/types/database';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  RefreshCw, 
-  AlertCircle, 
-  CheckCircle, 
-  Clock, 
-  XCircle,
-  Settings,
-  TrendingUp,
-  TrendingDown,
-  Minus
-} from 'lucide-react';
-import { formatCurrency } from '@/lib/formatters';
-import { AgentInputPerAsset, ASSET_TYPE_LABELS, AgentAction } from '@/types/agenteAporte';
+import { RefreshCw, AlertCircle } from 'lucide-react';
+import { AgentInputPerAsset } from '@/types/agenteAporte';
 import { AtivoMapeamentoModal } from '@/components/agenteAporte/AtivoMapeamentoModal';
 import { ValuationModal } from '@/components/agenteAporte/ValuationModal';
 import { AtivoDetalhesDrawer } from '@/components/agenteAporte/AtivoDetalhesDrawer';
-
-const ACTION_CONFIG: Record<AgentAction, { label: string; color: string; icon: React.ComponentType<{ className?: string }> }> = {
-  comprar: { label: 'COMPRAR', color: 'bg-green-600', icon: TrendingUp },
-  esperar: { label: 'ESPERAR', color: 'bg-yellow-600', icon: Clock },
-  evitar: { label: 'EVITAR', color: 'bg-red-600', icon: XCircle },
-};
+import { SetupWizard } from '@/components/agenteAporte/SetupWizard';
+import { PendenciasCard } from '@/components/agenteAporte/PendenciasCard';
+import { TopOportunidadesCard } from '@/components/agenteAporte/TopOportunidadesCard';
+import { TodosAtivosTab } from '@/components/agenteAporte/TodosAtivosTab';
 
 export default function AgenteAporte() {
   const { 
@@ -37,37 +22,31 @@ export default function AgenteAporte() {
     isSyncingPortfolio,
     syncMarketData,
     isSyncingMarket,
-    calculateDecision
+    calculateDecision,
+    getPendingCounts,
+    getTopOpportunities,
   } = useAgenteAporte();
 
-  const [activeTab, setActiveTab] = useState('agente');
+  const [activeTab, setActiveTab] = useState('acoes');
   const [selectedAsset, setSelectedAsset] = useState<AgentInputPerAsset | null>(null);
   const [showMapeamento, setShowMapeamento] = useState(false);
   const [showValuation, setShowValuation] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [showWizard, setShowWizard] = useState(false);
 
-  // Calculate decisions for all assets
+  // Get pending counts
+  const pendingCounts = getPendingCounts();
+  
+  // Get top opportunities
+  const topOpportunities = getTopOpportunities(5);
+
+  // All assets with decisions for the list tab
   const assetsWithDecisions = useMemo(() => {
     return agentInputs.map(input => ({
       ...input,
       decision: calculateDecision(input),
     }));
   }, [agentInputs, calculateDecision]);
-
-  // Group by action
-  const groupedAssets = useMemo(() => {
-    const groups: Record<AgentAction, typeof assetsWithDecisions> = {
-      comprar: [],
-      esperar: [],
-      evitar: [],
-    };
-
-    assetsWithDecisions.forEach(asset => {
-      groups[asset.decision.action].push(asset);
-    });
-
-    return groups;
-  }, [assetsWithDecisions]);
 
   const handleAssetClick = (asset: AgentInputPerAsset) => {
     setSelectedAsset(asset);
@@ -82,116 +61,6 @@ export default function AgenteAporte() {
   const handleEditMapping = (asset: AgentInputPerAsset) => {
     setSelectedAsset(asset);
     setShowMapeamento(true);
-  };
-
-  const renderAssetCard = (asset: typeof assetsWithDecisions[0]) => {
-    const { decision } = asset;
-    const config = ACTION_CONFIG[decision.action];
-    const Icon = config.icon;
-
-    const hasWarnings = decision.warnings.length > 0;
-    const hasPriceIssue = !asset.price_current && asset.asset_type !== 'renda_fixa';
-    const hasValuationIssue = !asset.valuation_type;
-
-    return (
-      <Card 
-        key={asset.asset_code} 
-        className="cursor-pointer hover:shadow-md transition-shadow"
-        onClick={() => handleAssetClick(asset)}
-      >
-        <CardContent className="p-4">
-          <div className="flex items-start justify-between mb-2">
-            <div>
-              <h3 className="font-semibold text-lg">{asset.asset_code}</h3>
-              <p className="text-sm text-muted-foreground">
-                {ASSET_TYPE_LABELS[asset.asset_type] || asset.asset_type}
-              </p>
-            </div>
-            <Badge className={`${config.color} text-white flex items-center gap-1`}>
-              <Icon className="h-3 w-3" />
-              {config.label}
-            </Badge>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 text-sm mb-3">
-            <div>
-              <span className="text-muted-foreground">Preco Atual:</span>
-              <p className="font-medium">
-                {asset.price_current 
-                  ? formatCurrency(asset.price_current, (asset.price_currency || 'BRL') as Moeda)
-                  : '—'}
-              </p>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Preco Justo:</span>
-              <p className="font-medium">
-                {asset.fair_value 
-                  ? formatCurrency(asset.fair_value, (asset.valuation_currency || 'BRL') as Moeda)
-                  : asset.fair_value_low && asset.fair_value_high
-                    ? `${formatCurrency(asset.fair_value_low, (asset.valuation_currency || 'BRL') as Moeda)} - ${formatCurrency(asset.fair_value_high, (asset.valuation_currency || 'BRL') as Moeda)}`
-                    : '—'}
-              </p>
-            </div>
-          </div>
-
-          {decision.metrics.margem_seguranca_pct !== undefined && (
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-sm text-muted-foreground">Margem:</span>
-              <span className={`text-sm font-medium ${
-                decision.metrics.margem_seguranca_pct >= 20 ? 'text-green-600' :
-                decision.metrics.margem_seguranca_pct >= 5 ? 'text-yellow-600' :
-                'text-red-600'
-              }`}>
-                {decision.metrics.margem_seguranca_pct.toFixed(1)}%
-              </span>
-            </div>
-          )}
-
-          <p className="text-sm text-muted-foreground line-clamp-2">{decision.rationale}</p>
-
-          {(hasPriceIssue || hasValuationIssue || hasWarnings) && (
-            <div className="flex flex-wrap gap-1 mt-2">
-              {hasPriceIssue && (
-                <Badge variant="outline" className="text-xs text-orange-600 border-orange-300">
-                  <AlertCircle className="h-3 w-3 mr-1" />
-                  Sem preco
-                </Badge>
-              )}
-              {hasValuationIssue && (
-                <Badge variant="outline" className="text-xs text-orange-600 border-orange-300">
-                  <AlertCircle className="h-3 w-3 mr-1" />
-                  Sem valuation
-                </Badge>
-              )}
-              {!asset.symbol_public && asset.asset_type !== 'renda_fixa' && (
-                <Badge variant="outline" className="text-xs text-orange-600 border-orange-300">
-                  <AlertCircle className="h-3 w-3 mr-1" />
-                  Sem simbolo
-                </Badge>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    );
-  };
-
-  const renderActionSection = (action: AgentAction, assets: typeof assetsWithDecisions) => {
-    if (assets.length === 0) return null;
-
-    const config = ACTION_CONFIG[action];
-
-    return (
-      <div className="mb-6">
-        <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-          <config.icon className="h-5 w-5" />
-          {config.label} ({assets.length})
-        </h2>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {assets.map(renderAssetCard)}
-        </div>
-      </div>
-    );
   };
 
   return (
@@ -213,7 +82,7 @@ export default function AgenteAporte() {
               disabled={isSyncingPortfolio}
             >
               <RefreshCw className={`h-4 w-4 mr-2 ${isSyncingPortfolio ? 'animate-spin' : ''}`} />
-              Sincronizar Carteira
+              Sincronizar
             </Button>
             <Button
               variant="default"
@@ -229,11 +98,12 @@ export default function AgenteAporte() {
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
-            <TabsTrigger value="agente">Agente</TabsTrigger>
+            <TabsTrigger value="acoes">Acoes do Dia</TabsTrigger>
+            <TabsTrigger value="todos">Todos os Ativos</TabsTrigger>
             <TabsTrigger value="mapeamento">Mapeamento</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="agente" className="mt-4">
+          <TabsContent value="acoes" className="mt-4 space-y-4">
             {isLoading ? (
               <div className="flex items-center justify-center h-48">
                 <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -253,22 +123,43 @@ export default function AgenteAporte() {
               </Card>
             ) : (
               <>
-                {renderActionSection('comprar', groupedAssets.comprar)}
-                {renderActionSection('esperar', groupedAssets.esperar)}
-                {renderActionSection('evitar', groupedAssets.evitar)}
+                {/* Pendencias Section */}
+                <PendenciasCard 
+                  counts={pendingCounts} 
+                  onResolve={() => setShowWizard(true)} 
+                />
+
+                {/* Top Opportunities Section */}
+                <TopOportunidadesCard 
+                  opportunities={topOpportunities}
+                  onAssetClick={handleAssetClick}
+                />
               </>
             )}
+          </TabsContent>
+
+          <TabsContent value="todos" className="mt-4">
+            <TodosAtivosTab 
+              assets={assetsWithDecisions}
+              onAssetClick={handleAssetClick}
+            />
           </TabsContent>
 
           <TabsContent value="mapeamento" className="mt-4">
             <AtivoMapeamentoModal 
               open={true} 
-              onClose={() => setActiveTab('agente')} 
+              onClose={() => setActiveTab('acoes')} 
               embedded={true}
             />
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Setup Wizard */}
+      <SetupWizard 
+        open={showWizard} 
+        onClose={() => setShowWizard(false)} 
+      />
 
       {selectedAsset && (
         <>
