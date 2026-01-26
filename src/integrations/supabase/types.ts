@@ -934,6 +934,39 @@ export type Database = {
           },
         ]
       }
+      price_inputs_manual: {
+        Row: {
+          asset_code: string
+          created_at: string | null
+          currency: string
+          id: string
+          notes: string | null
+          price: number
+          ref_date: string
+          user_id: string
+        }
+        Insert: {
+          asset_code: string
+          created_at?: string | null
+          currency?: string
+          id?: string
+          notes?: string | null
+          price: number
+          ref_date: string
+          user_id: string
+        }
+        Update: {
+          asset_code?: string
+          created_at?: string | null
+          currency?: string
+          id?: string
+          notes?: string | null
+          price?: number
+          ref_date?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       proventos: {
         Row: {
           ativo_id: string
@@ -1015,6 +1048,36 @@ export type Database = {
           },
         ]
       }
+      rate_inputs_manual: {
+        Row: {
+          asset_code: string
+          created_at: string | null
+          current_rate: number
+          id: string
+          notes: string | null
+          ref_date: string
+          user_id: string
+        }
+        Insert: {
+          asset_code: string
+          created_at?: string | null
+          current_rate: number
+          id?: string
+          notes?: string | null
+          ref_date: string
+          user_id: string
+        }
+        Update: {
+          asset_code?: string
+          created_at?: string | null
+          current_rate?: number
+          id?: string
+          notes?: string | null
+          ref_date?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       tipos_gasto: {
         Row: {
           ativo: boolean | null
@@ -1055,15 +1118,19 @@ export type Database = {
           asset_type: string | null
           classification: string | null
           consultoria: string | null
+          current_rate_manual: number | null
           exchange: string | null
           fair_value: number | null
           fair_value_high: number | null
           fair_value_low: number | null
           fx_date: string | null
           fx_usdbrl: number | null
+          manual_price: number | null
+          manual_price_date: string | null
           price_currency: string | null
           price_current: number | null
           price_date: string | null
+          rate_manual_date: string | null
           symbol_public: string | null
           target_rate: number | null
           target_yield: number | null
@@ -1085,6 +1152,17 @@ export type Database = {
         }
         Relationships: []
       }
+      v_latest_price_manual: {
+        Row: {
+          asset_code: string | null
+          currency: string | null
+          notes: string | null
+          price: number | null
+          ref_date: string | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
       v_latest_price_per_asset: {
         Row: {
           asset_code: string | null
@@ -1097,6 +1175,16 @@ export type Database = {
           source: string | null
           user_id: string | null
           volume: number | null
+        }
+        Relationships: []
+      }
+      v_latest_rate_manual: {
+        Row: {
+          asset_code: string | null
+          current_rate: number | null
+          notes: string | null
+          ref_date: string | null
+          user_id: string | null
         }
         Relationships: []
       }
