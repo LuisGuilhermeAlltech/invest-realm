@@ -44,6 +44,42 @@ export type Database = {
         }
         Relationships: []
       }
+      asset_master: {
+        Row: {
+          active: boolean
+          asset_code: string
+          asset_type: string
+          created_at: string | null
+          currency: string
+          exchange: string | null
+          id: string
+          symbol_public: string | null
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          asset_code: string
+          asset_type: string
+          created_at?: string | null
+          currency?: string
+          exchange?: string | null
+          id?: string
+          symbol_public?: string | null
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          asset_code?: string
+          asset_type?: string
+          created_at?: string | null
+          currency?: string
+          exchange?: string | null
+          id?: string
+          symbol_public?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       ativos: {
         Row: {
           ativo: boolean | null
@@ -227,6 +263,60 @@ export type Database = {
             referencedColumns: ["tipo_id"]
           },
         ]
+      }
+      consultoria_valuation_snapshots: {
+        Row: {
+          asset_code: string
+          classification: string | null
+          consultoria: string
+          created_at: string | null
+          currency: string
+          fair_value: number | null
+          fair_value_high: number | null
+          fair_value_low: number | null
+          id: string
+          notes: string | null
+          ref_date: string
+          target_rate: number | null
+          target_yield: number | null
+          user_id: string
+          valuation_type: string
+        }
+        Insert: {
+          asset_code: string
+          classification?: string | null
+          consultoria: string
+          created_at?: string | null
+          currency?: string
+          fair_value?: number | null
+          fair_value_high?: number | null
+          fair_value_low?: number | null
+          id?: string
+          notes?: string | null
+          ref_date: string
+          target_rate?: number | null
+          target_yield?: number | null
+          user_id: string
+          valuation_type?: string
+        }
+        Update: {
+          asset_code?: string
+          classification?: string | null
+          consultoria?: string
+          created_at?: string | null
+          currency?: string
+          fair_value?: number | null
+          fair_value_high?: number | null
+          fair_value_low?: number | null
+          id?: string
+          notes?: string | null
+          ref_date?: string
+          target_rate?: number | null
+          target_yield?: number | null
+          user_id?: string
+          valuation_type?: string
+        }
+        Relationships: []
       }
       contas_a_pagar: {
         Row: {
@@ -584,6 +674,36 @@ export type Database = {
           },
         ]
       }
+      fx_rates_daily: {
+        Row: {
+          created_at: string | null
+          id: string
+          pair: string
+          rate: number
+          ref_date: string
+          source: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          pair: string
+          rate: number
+          ref_date: string
+          source?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          pair?: string
+          rate?: number
+          ref_date?: string
+          source?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       limites_tipo_gasto: {
         Row: {
           ano: number
@@ -614,6 +734,51 @@ export type Database = {
           tipo?: Database["public"]["Enums"]["tipo_categoria_financeira"]
           updated_at?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      market_prices_daily: {
+        Row: {
+          asset_code: string
+          close: number | null
+          created_at: string | null
+          currency: string
+          high: number | null
+          id: string
+          low: number | null
+          open: number | null
+          ref_date: string
+          source: string
+          user_id: string
+          volume: number | null
+        }
+        Insert: {
+          asset_code: string
+          close?: number | null
+          created_at?: string | null
+          currency: string
+          high?: number | null
+          id?: string
+          low?: number | null
+          open?: number | null
+          ref_date: string
+          source?: string
+          user_id: string
+          volume?: number | null
+        }
+        Update: {
+          asset_code?: string
+          close?: number | null
+          created_at?: string | null
+          currency?: string
+          high?: number | null
+          id?: string
+          low?: number | null
+          open?: number | null
+          ref_date?: string
+          source?: string
+          user_id?: string
+          volume?: number | null
         }
         Relationships: []
       }
@@ -882,6 +1047,77 @@ export type Database = {
       }
     }
     Views: {
+      v_agent_inputs_per_asset: {
+        Row: {
+          active: boolean | null
+          asset_code: string | null
+          asset_currency: string | null
+          asset_type: string | null
+          classification: string | null
+          consultoria: string | null
+          exchange: string | null
+          fair_value: number | null
+          fair_value_high: number | null
+          fair_value_low: number | null
+          fx_date: string | null
+          fx_usdbrl: number | null
+          price_currency: string | null
+          price_current: number | null
+          price_date: string | null
+          symbol_public: string | null
+          target_rate: number | null
+          target_yield: number | null
+          user_id: string | null
+          valuation_currency: string | null
+          valuation_date: string | null
+          valuation_notes: string | null
+          valuation_type: string | null
+        }
+        Relationships: []
+      }
+      v_latest_fx_usdbrl: {
+        Row: {
+          pair: string | null
+          rate: number | null
+          ref_date: string | null
+          source: string | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
+      v_latest_price_per_asset: {
+        Row: {
+          asset_code: string | null
+          close: number | null
+          currency: string | null
+          high: number | null
+          low: number | null
+          open: number | null
+          ref_date: string | null
+          source: string | null
+          user_id: string | null
+          volume: number | null
+        }
+        Relationships: []
+      }
+      v_latest_valuation_per_asset: {
+        Row: {
+          asset_code: string | null
+          classification: string | null
+          consultoria: string | null
+          currency: string | null
+          fair_value: number | null
+          fair_value_high: number | null
+          fair_value_low: number | null
+          notes: string | null
+          ref_date: string | null
+          target_rate: number | null
+          target_yield: number | null
+          user_id: string | null
+          valuation_type: string | null
+        }
+        Relationships: []
+      }
       vw_carteira_atual: {
         Row: {
           ativo_id: string | null
