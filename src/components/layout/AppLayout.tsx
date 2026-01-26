@@ -27,11 +27,12 @@ const navItems = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/carteira', label: 'Carteira', icon: Briefcase },
   { path: '/caixa', label: 'Caixa', icon: Wallet },
-  { path: '/movimentacoes', label: 'Movimentações', icon: ArrowLeftRight },
+  { path: '/movimentacoes', label: 'Movimentacoes', icon: ArrowLeftRight },
   { path: '/proventos', label: 'Proventos', icon: Coins },
   { path: '/metas', label: 'Metas', icon: Target },
   { path: '/financeiro', label: 'Financeiro', icon: Calculator },
   { path: '/contas-a-pagar', label: 'Contas a Pagar', icon: CreditCard },
+  { path: '/agente-aporte', label: 'Agente de Aporte', icon: TrendingUp },
   { path: '/cadastros', label: 'Cadastros', icon: Settings },
 ];
 
