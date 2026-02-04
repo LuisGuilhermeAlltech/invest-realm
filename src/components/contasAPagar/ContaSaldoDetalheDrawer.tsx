@@ -283,7 +283,10 @@ export function ContaSaldoDetalheDrawer({
                               {TIPO_MOVIMENTACAO_LABELS[mov.tipo_movimentacao]}
                             </span>
                             <span className="text-xs text-muted-foreground">
-                              {format(new Date(mov.data), "dd/MM/yyyy", { locale: ptBR })}
+                              {(() => {
+                                const [year, month, day] = mov.data.split('-').map(Number);
+                                return format(new Date(year, month - 1, day), "dd/MM/yyyy", { locale: ptBR });
+                              })()}
                             </span>
                           </div>
                           
