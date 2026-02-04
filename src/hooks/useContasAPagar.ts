@@ -252,12 +252,14 @@ export function useContasAPagar() {
       contaId, 
       tipo, 
       valor, 
-      observacao 
+      observacao,
+      data 
     }: { 
       contaId: string; 
       tipo: TipoMovimentacaoSaldo; 
       valor: number; 
       observacao?: string;
+      data?: string;
     }) => {
       if (!user) throw new Error('Usuário não autenticado');
 
@@ -283,12 +285,13 @@ export function useContasAPagar() {
       }
 
       // Registrar a movimentação
+      const dataMovimentacao = data || format(new Date(), 'yyyy-MM-dd');
       const { error: movError } = await supabase
         .from('contas_saldo_movimentacoes')
         .insert({
           user_id: user.id,
           conta_pagar_id: contaId,
-          data: format(new Date(), 'yyyy-MM-dd'),
+          data: dataMovimentacao,
           tipo_movimentacao: tipo,
           valor: tipo === 'ajuste' ? Math.abs(saldoResultante - saldoAnterior) : valor,
           saldo_anterior: saldoAnterior,
