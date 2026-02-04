@@ -84,7 +84,7 @@ export function ContaAPagarModal({
         observacoes: conta.observacoes || '',
       });
     } else {
-      setModo('parcelada');
+      setModo('saldo');
       setFormData({
         descricao: '',
         tipo: 'cartao',
@@ -213,8 +213,8 @@ export function ContaAPagarModal({
           {!isEditing && (
             <Tabs value={modo} onValueChange={(v) => setModo(v as ModoContaAPagar)}>
               <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="saldo">Conta Saldo</TabsTrigger>
                 <TabsTrigger value="parcelada">Parcelada</TabsTrigger>
-                <TabsTrigger value="saldo">Saldo</TabsTrigger>
               </TabsList>
             </Tabs>
           )}
@@ -226,7 +226,7 @@ export function ContaAPagarModal({
               id="descricao"
               value={formData.descricao}
               onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
-              placeholder={modo === 'parcelada' ? 'Ex: Levis, Empréstimo XP' : 'Ex: Vale Alimentação, Conta Corrente'}
+              placeholder={modo === 'parcelada' ? 'Ex: Levi\'s, Empréstimo XP' : 'Ex: Cartão Nubank, Financiamento'}
               required
             />
           </div>
@@ -259,7 +259,7 @@ export function ContaAPagarModal({
                 id="instituicao"
                 value={formData.instituicao}
                 onChange={(e) => setFormData({ ...formData, instituicao: e.target.value })}
-                placeholder="Ex: Santander, Bradesco"
+                placeholder="Ex: Nubank, Itaú"
                 required
               />
             </div>
@@ -370,7 +370,9 @@ export function ContaAPagarModal({
             <>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="saldo_atual">Saldo Atual *</Label>
+                  <Label htmlFor="saldo_atual">
+                    {isEditing ? 'Saldo Atual *' : 'Saldo Inicial *'}
+                  </Label>
                   <Input
                     id="saldo_atual"
                     type="number"
@@ -378,6 +380,7 @@ export function ContaAPagarModal({
                     min="0"
                     value={formData.saldo_atual}
                     onChange={(e) => setFormData({ ...formData, saldo_atual: e.target.value })}
+                    placeholder="R$ 0,00"
                     required
                   />
                 </div>
@@ -412,7 +415,7 @@ export function ContaAPagarModal({
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="meta_pagamento">Meta de Pagamento</Label>
+                  <Label htmlFor="meta_pagamento">Meta de Pagamento Mensal</Label>
                   <Input
                     id="meta_pagamento"
                     type="number"
@@ -420,10 +423,14 @@ export function ContaAPagarModal({
                     min="0"
                     value={formData.meta_pagamento}
                     onChange={(e) => setFormData({ ...formData, meta_pagamento: e.target.value })}
-                    placeholder="Opcional"
+                    placeholder="Quanto quer pagar por mês"
                   />
                 </div>
               </div>
+
+              <p className="text-xs text-muted-foreground">
+                A meta de pagamento define quanto você pretende pagar por mês. O sistema calculará automaticamente seu progresso.
+              </p>
             </>
           )}
 

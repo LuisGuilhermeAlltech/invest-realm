@@ -5,7 +5,8 @@ import { toast } from 'sonner';
 import { 
   ContaAPagar, 
   ContaAPagarComCalculos, 
-  ContaSaldoHistorico,
+  MovimentacaoSaldo,
+  TipoMovimentacaoSaldo,
 } from '@/types/contasAPagar';
 import { startOfMonth, format, endOfMonth, subMonths, parseISO, differenceInMonths } from 'date-fns';
 
@@ -23,12 +24,43 @@ function getCompetenciaAnterior(): string {
   return format(startOfMonth(subMonths(new Date(), 1)), 'yyyy-MM-dd');
 }
 
+function getMesAtualInicioFim() {
+  const hoje = new Date();
+  const inicio = startOfMonth(hoje);
+  const fim = endOfMonth(hoje);
+  return {
+    inicio: format(inicio, 'yyyy-MM-dd'),
+    fim: format(fim, 'yyyy-MM-dd'),
+  };
+}
+
 export function useContasAPagar() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  // Buscar histórico de saldo
-  const fetchHistorico = async (): Promise<ContaSaldoHistorico[]> => {
+  // Buscar movimentações de saldo
+  const fetchMovimentacoes = async (): Promise<MovimentacaoSaldo[]> => {
+    if (!user) return [];
+
+    const { data, error } = await supabase
+      .from('contas_saldo_movimentacoes')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('data', { ascending: false })
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return (data || []) as MovimentacaoSaldo[];
+  };
+
+  const { data: movimentacoes = [] } = useQuery({
+    queryKey: ['contas_saldo_movimentacoes', user?.id],
+    queryFn: fetchMovimentacoes,
+    enabled: !!user,
+  });
+
+  // Buscar histórico de saldo (para variação mensal)
+  const fetchHistorico = async () => {
     if (!user) return [];
 
     const { data, error } = await supabase
@@ -50,28 +82,21 @@ export function useContasAPagar() {
   const calcularParcelaAtualPorData = (dataInicio: string | null, totalParcelas: number): number => {
     if (!dataInicio) return 0;
     
-    // Usar parseISO para evitar problemas de timezone
     const inicio = startOfMonth(parseISO(dataInicio));
     const hoje = startOfMonth(new Date());
-    
-    // Calcular diferença em meses usando date-fns
     const mesesPassados = differenceInMonths(hoje, inicio);
     
-    // Se a data de início é no futuro, ainda não há parcelas pagas
     if (mesesPassados < 0) return 0;
-    
-    // A parcela atual é o número de meses passados + 1 (pois a primeira parcela é no mês de início)
-    // Limitado ao total de parcelas
     return Math.min(mesesPassados + 1, totalParcelas);
   };
 
   // Função para calcular campos derivados
   const calcularCamposDerivados = (conta: ContaAPagar): ContaAPagarComCalculos => {
+    const { inicio, fim } = getMesAtualInicioFim();
+    
     if (conta.modo === 'parcelada') {
       const totalParcelas = conta.total_parcelas || 0;
       const valorParcela = conta.valor_parcela || 0;
-      
-      // Calcular parcela atual baseada na data de início
       const parcelaAtual = calcularParcelaAtualPorData(conta.data_inicio, totalParcelas);
       
       const parcelas_restantes = Math.max(totalParcelas - parcelaAtual, 0);
@@ -85,19 +110,44 @@ export function useContasAPagar() {
         compromisso_mensal: valorParcela,
         parcelas_formatado,
         variacao_mensal: 0,
+        total_pago_mes: 0,
+        total_acrescido_mes: 0,
+        progresso_meta: 0,
+        ultima_movimentacao: null,
       };
     } else {
       // Modo saldo
       const saldoAtual = conta.saldo_atual || 0;
-      const competenciaAtual = getCompetenciaAtual();
       const competenciaAnterior = getCompetenciaAnterior();
 
       // Buscar saldo do mês anterior
       const historicoMesAnterior = historicoSaldo.find(
-        h => h.conta_pagar_id === conta.id && h.competencia === competenciaAnterior
+        (h: { conta_pagar_id: string; competencia: string }) => 
+          h.conta_pagar_id === conta.id && h.competencia === competenciaAnterior
       );
-      const saldoMesAnterior = historicoMesAnterior?.saldo || 0;
+      const saldoMesAnterior = historicoMesAnterior?.saldo || conta.saldo_inicial || saldoAtual;
       const variacao_mensal = saldoAtual - saldoMesAnterior;
+
+      // Movimentações do mês atual
+      const movsMesAtual = movimentacoes.filter(
+        m => m.conta_pagar_id === conta.id && m.data >= inicio && m.data <= fim
+      );
+
+      const total_pago_mes = movsMesAtual
+        .filter(m => m.tipo_movimentacao === 'pagamento')
+        .reduce((sum, m) => sum + m.valor, 0);
+
+      const total_acrescido_mes = movsMesAtual
+        .filter(m => m.tipo_movimentacao === 'acrescimo')
+        .reduce((sum, m) => sum + m.valor, 0);
+
+      // Progresso da meta
+      const meta = conta.meta_pagamento || 0;
+      const progresso_meta = meta > 0 ? Math.min((total_pago_mes / meta) * 100, 100) : 0;
+
+      // Última movimentação
+      const ultimaMov = movimentacoes.find(m => m.conta_pagar_id === conta.id);
+      const ultima_movimentacao = ultimaMov ? new Date(ultimaMov.data) : null;
 
       // Compromisso mensal: meta > pagamento_minimo > 0
       const compromisso_mensal = conta.meta_pagamento || conta.pagamento_minimo || 0;
@@ -109,6 +159,10 @@ export function useContasAPagar() {
         compromisso_mensal,
         parcelas_formatado: '-',
         variacao_mensal,
+        total_pago_mes,
+        total_acrescido_mes,
+        progresso_meta,
+        ultima_movimentacao,
       };
     }
   };
@@ -135,7 +189,7 @@ export function useContasAPagar() {
     error,
     refetch,
   } = useQuery({
-    queryKey: ['contas_a_pagar', user?.id, historicoSaldo],
+    queryKey: ['contas_a_pagar', user?.id, historicoSaldo, movimentacoes],
     queryFn: fetchContasAPagar,
     enabled: !!user,
   });
@@ -192,92 +246,67 @@ export function useContasAPagar() {
     queryClient.invalidateQueries({ queryKey: ['contas_a_pagar', user?.id] });
   };
 
-  // Atualizar saldo (para modo saldo)
-  const atualizarSaldoMutation = useMutation({
-    mutationFn: async ({ id, novoSaldo }: { id: string; novoSaldo: number }) => {
-      if (!user) throw new Error('Usuário não autenticado');
-
-      const competenciaAtual = getCompetenciaAtual();
-
-      // Atualizar ou inserir no histórico
-      const { error: histError } = await supabase
-        .from('contas_saldo_historico')
-        .upsert({
-          user_id: user.id,
-          conta_pagar_id: id,
-          competencia: competenciaAtual,
-          saldo: novoSaldo,
-        }, {
-          onConflict: 'conta_pagar_id,competencia',
-        });
-
-      if (histError) throw histError;
-
-      // Atualizar a conta principal
-      const { data, error } = await supabase
-        .from('contas_a_pagar')
-        .update({
-          saldo_atual: novoSaldo,
-          saldo_ultima_atualizacao: new Date().toISOString(),
-        })
-        .eq('id', id)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['contas_a_pagar', user?.id] });
-      queryClient.invalidateQueries({ queryKey: ['contas_saldo_historico', user?.id] });
-      toast.success('Saldo atualizado com sucesso!');
-    },
-    onError: (error) => {
-      console.error('Erro ao atualizar saldo:', error);
-      toast.error('Erro ao atualizar saldo');
-    },
-  });
-
-  // Adicionar pagamento (para modo saldo - subtrai do saldo atual)
-  const adicionarPagamentoMutation = useMutation({
-    mutationFn: async ({ id, valor, descricao, data }: { id: string; valor: number; descricao?: string; data: string }) => {
+  // Registrar movimentação de saldo
+  const registrarMovimentacaoMutation = useMutation({
+    mutationFn: async ({ 
+      contaId, 
+      tipo, 
+      valor, 
+      observacao 
+    }: { 
+      contaId: string; 
+      tipo: TipoMovimentacaoSaldo; 
+      valor: number; 
+      observacao?: string;
+    }) => {
       if (!user) throw new Error('Usuário não autenticado');
 
       // Buscar saldo atual da conta
       const { data: conta, error: contaError } = await supabase
         .from('contas_a_pagar')
         .select('saldo_atual')
-        .eq('id', id)
+        .eq('id', contaId)
         .single();
 
       if (contaError) throw contaError;
 
-      const saldoAtual = conta.saldo_atual || 0;
-      const novoSaldo = Math.max(saldoAtual - valor, 0);
+      const saldoAnterior = conta.saldo_atual || 0;
+      let saldoResultante: number;
 
-      // Registrar o pagamento
-      const { error: pagError } = await supabase
-        .from('contas_saldo_pagamentos')
+      if (tipo === 'pagamento') {
+        saldoResultante = Math.max(saldoAnterior - valor, 0);
+      } else if (tipo === 'acrescimo') {
+        saldoResultante = saldoAnterior + valor;
+      } else {
+        // Ajuste - valor é o novo saldo absoluto
+        saldoResultante = valor;
+      }
+
+      // Registrar a movimentação
+      const { error: movError } = await supabase
+        .from('contas_saldo_movimentacoes')
         .insert({
           user_id: user.id,
-          conta_pagar_id: id,
-          valor,
-          descricao: descricao || null,
-          data,
+          conta_pagar_id: contaId,
+          data: format(new Date(), 'yyyy-MM-dd'),
+          tipo_movimentacao: tipo,
+          valor: tipo === 'ajuste' ? Math.abs(saldoResultante - saldoAnterior) : valor,
+          saldo_anterior: saldoAnterior,
+          saldo_resultante: saldoResultante,
+          observacao: observacao || null,
         });
 
-      if (pagError) throw pagError;
-
-      const competenciaAtual = getCompetenciaAtual();
+      if (movError) throw movError;
 
       // Atualizar histórico de saldo
+      const competenciaAtual = getCompetenciaAtual();
       const { error: histError } = await supabase
         .from('contas_saldo_historico')
         .upsert({
           user_id: user.id,
-          conta_pagar_id: id,
+          conta_pagar_id: contaId,
           competencia: competenciaAtual,
-          saldo: novoSaldo,
+          saldo: saldoResultante,
         }, {
           onConflict: 'conta_pagar_id,competencia',
         });
@@ -286,37 +315,44 @@ export function useContasAPagar() {
 
       // Atualizar a conta principal
       const updateData: { saldo_atual: number; saldo_ultima_atualizacao: string; status?: string } = {
-        saldo_atual: novoSaldo,
+        saldo_atual: saldoResultante,
         saldo_ultima_atualizacao: new Date().toISOString(),
       };
 
-      // Se o saldo zerou, quitar automaticamente
-      if (novoSaldo === 0) {
+      if (saldoResultante === 0) {
         updateData.status = 'quitado';
       }
 
       const { data: updatedConta, error } = await supabase
         .from('contas_a_pagar')
         .update(updateData)
-        .eq('id', id)
+        .eq('id', contaId)
         .select()
         .single();
 
       if (error) throw error;
-      return updatedConta;
+      return { conta: updatedConta, tipo, saldoResultante };
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['contas_a_pagar', user?.id] });
       queryClient.invalidateQueries({ queryKey: ['contas_saldo_historico', user?.id] });
-      if (data.status === 'quitado') {
-        toast.success('Pagamento registrado! Conta quitada automaticamente.');
+      queryClient.invalidateQueries({ queryKey: ['contas_saldo_movimentacoes', user?.id] });
+      
+      const tipoLabel = {
+        pagamento: 'Pagamento registrado',
+        acrescimo: 'Acréscimo registrado',
+        ajuste: 'Saldo ajustado',
+      }[data.tipo];
+
+      if (data.conta.status === 'quitado') {
+        toast.success(`${tipoLabel}! Conta quitada automaticamente.`);
       } else {
-        toast.success('Pagamento registrado com sucesso!');
+        toast.success(`${tipoLabel} com sucesso!`);
       }
     },
     onError: (error) => {
-      console.error('Erro ao adicionar pagamento:', error);
-      toast.error('Erro ao adicionar pagamento');
+      console.error('Erro ao registrar movimentação:', error);
+      toast.error('Erro ao registrar movimentação');
     },
   });
 
@@ -338,6 +374,7 @@ export function useContasAPagar() {
           total_parcelas: novaConta.total_parcelas || null,
           data_inicio: novaConta.data_inicio || null,
           dia_vencimento: novaConta.dia_vencimento!,
+          saldo_inicial: novaConta.saldo_atual || null,
           saldo_atual: novaConta.saldo_atual || null,
           pagamento_minimo: novaConta.pagamento_minimo || null,
           meta_pagamento: novaConta.meta_pagamento || null,
@@ -352,9 +389,10 @@ export function useContasAPagar() {
 
       if (error) throw error;
 
-      // Se for modo saldo, criar registro inicial no histórico
+      // Se for modo saldo, criar registro inicial no histórico e movimentação inicial
       if (novaConta.modo === 'saldo' && novaConta.saldo_atual) {
         const competenciaAtual = getCompetenciaAtual();
+        
         await supabase
           .from('contas_saldo_historico')
           .insert({
@@ -363,6 +401,20 @@ export function useContasAPagar() {
             competencia: competenciaAtual,
             saldo: novaConta.saldo_atual,
           });
+
+        // Registrar movimentação inicial
+        await supabase
+          .from('contas_saldo_movimentacoes')
+          .insert({
+            user_id: user.id,
+            conta_pagar_id: data.id,
+            data: format(new Date(), 'yyyy-MM-dd'),
+            tipo_movimentacao: 'ajuste',
+            valor: novaConta.saldo_atual,
+            saldo_anterior: 0,
+            saldo_resultante: novaConta.saldo_atual,
+            observacao: 'Saldo inicial',
+          });
       }
 
       return data;
@@ -370,6 +422,7 @@ export function useContasAPagar() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contas_a_pagar', user?.id] });
       queryClient.invalidateQueries({ queryKey: ['contas_saldo_historico', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['contas_saldo_movimentacoes', user?.id] });
       toast.success('Conta a pagar criada com sucesso!');
     },
     onError: (error) => {
@@ -437,6 +490,7 @@ export function useContasAPagar() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contas_a_pagar', user?.id] });
       queryClient.invalidateQueries({ queryKey: ['contas_saldo_historico', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['contas_saldo_movimentacoes', user?.id] });
       toast.success('Conta excluída com sucesso!');
     },
     onError: (error) => {
@@ -445,21 +499,49 @@ export function useContasAPagar() {
     },
   });
 
+  // Buscar movimentações de uma conta específica
+  const getMovimentacoesConta = (contaId: string): MovimentacaoSaldo[] => {
+    return movimentacoes.filter(m => m.conta_pagar_id === contaId);
+  };
+
   // Buscar instituições únicas para filtro
   const instituicoes = [...new Set(contasAPagar.map((c) => c.instituicao))].sort();
 
+  // Separar contas por modo
+  const contasParceladas = contasAPagar.filter(c => c.modo === 'parcelada');
+  const contasSaldo = contasAPagar.filter(c => c.modo === 'saldo');
+
   // Cálculos de resumo (apenas contas ativas)
   const contasAtivas = contasAPagar.filter((c) => c.status === 'ativo');
+  const contasParceladasAtivas = contasAtivas.filter(c => c.modo === 'parcelada');
+  const contasSaldoAtivas = contasAtivas.filter(c => c.modo === 'saldo');
+
   const totalEmAberto = contasAtivas.reduce((sum, c) => sum + c.valor_restante, 0);
   const compromissoMensal = contasAtivas.reduce((sum, c) => sum + c.compromisso_mensal, 0);
   const qtdAtivas = contasAtivas.length;
   
-  // Variação total do mês (apenas contas de saldo)
-  const contasSaldo = contasAtivas.filter((c) => c.modo === 'saldo');
-  const variacaoTotalMes = contasSaldo.reduce((sum, c) => sum + c.variacao_mensal, 0);
+  // Resumo específico para contas saldo
+  const totalSaldoAtual = contasSaldoAtivas.reduce((sum, c) => sum + (c.saldo_atual || 0), 0);
+  const totalPagoMesSaldo = contasSaldoAtivas.reduce((sum, c) => sum + c.total_pago_mes, 0);
+  const totalAcrescidoMesSaldo = contasSaldoAtivas.reduce((sum, c) => sum + c.total_acrescido_mes, 0);
+  const variacaoTotalMes = contasSaldoAtivas.reduce((sum, c) => sum + c.variacao_mensal, 0);
+  
+  // Progresso médio das metas
+  const contasComMeta = contasSaldoAtivas.filter(c => (c.meta_pagamento || 0) > 0);
+  const progressoMedioMetas = contasComMeta.length > 0
+    ? contasComMeta.reduce((sum, c) => sum + c.progresso_meta, 0) / contasComMeta.length
+    : 0;
+
+  // Resumo parceladas
+  const totalParcelasEmAberto = contasParceladasAtivas.reduce((sum, c) => sum + c.valor_restante, 0);
+  const compromissoMensalParceladas = contasParceladasAtivas.reduce((sum, c) => sum + c.compromisso_mensal, 0);
 
   return {
     contasAPagar,
+    contasParceladas,
+    contasSaldo,
+    movimentacoes,
+    getMovimentacoesConta,
     isLoading,
     error,
     refetch,
@@ -468,20 +550,28 @@ export function useContasAPagar() {
     updateConta: updateMutation.mutate,
     quitarConta: quitarMutation.mutate,
     deleteConta: deleteMutation.mutate,
-    atualizarSaldo: atualizarSaldoMutation.mutate,
-    adicionarPagamento: adicionarPagamentoMutation.mutate,
+    registrarMovimentacao: registrarMovimentacaoMutation.mutate,
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
     isQuiting: quitarMutation.isPending,
     isDeleting: deleteMutation.isPending,
-    isAtualizandoSaldo: atualizarSaldoMutation.isPending,
-    isAdicionandoPagamento: adicionarPagamentoMutation.isPending,
+    isRegistrandoMovimentacao: registrarMovimentacaoMutation.isPending,
     instituicoes,
     resumo: {
       totalEmAberto,
       compromissoMensal,
       qtdAtivas,
       variacaoTotalMes,
+      // Saldo específico
+      totalSaldoAtual,
+      totalPagoMesSaldo,
+      totalAcrescidoMesSaldo,
+      progressoMedioMetas,
+      qtdContasSaldo: contasSaldoAtivas.length,
+      // Parceladas específico
+      totalParcelasEmAberto,
+      compromissoMensalParceladas,
+      qtdContasParceladas: contasParceladasAtivas.length,
     },
   };
 }
