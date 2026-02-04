@@ -1,6 +1,7 @@
 export type TipoContaAPagar = 'cartao' | 'emprestimo' | 'outro';
 export type StatusContaAPagar = 'ativo' | 'quitado';
 export type ModoContaAPagar = 'parcelada' | 'saldo';
+export type TipoMovimentacaoSaldo = 'pagamento' | 'acrescimo' | 'ajuste';
 
 export interface ContaAPagar {
   id: string;
@@ -19,6 +20,7 @@ export interface ContaAPagar {
   parcela_atual: number;
   ultima_baixa_competencia: string | null;
   // Campos para saldo
+  saldo_inicial: number | null;
   saldo_atual: number | null;
   pagamento_minimo: number | null;
   meta_pagamento: number | null;
@@ -39,15 +41,33 @@ export interface ContaAPagarComCalculos extends ContaAPagar {
   parcelas_formatado: string;
   // Campos específicos para saldo
   variacao_mensal: number;
+  total_pago_mes: number;
+  total_acrescido_mes: number;
+  progresso_meta: number; // 0-100
+  ultima_movimentacao: Date | null;
 }
 
-export interface ContaSaldoHistorico {
+export interface MovimentacaoSaldo {
   id: string;
   user_id: string;
   conta_pagar_id: string;
-  competencia: string;
-  saldo: number;
+  data: string;
+  tipo_movimentacao: TipoMovimentacaoSaldo;
+  valor: number;
+  saldo_anterior: number;
+  saldo_resultante: number;
+  observacao: string | null;
   created_at: string;
+}
+
+export interface ContaSaldoResumoMensal {
+  user_id: string;
+  conta_pagar_id: string;
+  mes: string;
+  total_pago: number;
+  total_acrescido: number;
+  total_ajuste_reducao: number;
+  qtd_movimentacoes: number;
 }
 
 export const TIPO_CONTA_LABELS: Record<TipoContaAPagar, string> = {
@@ -64,4 +84,16 @@ export const STATUS_CONTA_LABELS: Record<StatusContaAPagar, string> = {
 export const MODO_CONTA_LABELS: Record<ModoContaAPagar, string> = {
   parcelada: 'Parcelada',
   saldo: 'Saldo',
+};
+
+export const TIPO_MOVIMENTACAO_LABELS: Record<TipoMovimentacaoSaldo, string> = {
+  pagamento: 'Pagamento',
+  acrescimo: 'Acréscimo',
+  ajuste: 'Ajuste',
+};
+
+export const TIPO_MOVIMENTACAO_COLORS: Record<TipoMovimentacaoSaldo, string> = {
+  pagamento: 'text-green-600',
+  acrescimo: 'text-destructive',
+  ajuste: 'text-blue-600',
 };

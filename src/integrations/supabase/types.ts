@@ -333,6 +333,7 @@ export type Database = {
           pagamento_minimo: number | null
           parcela_atual: number
           saldo_atual: number | null
+          saldo_inicial: number | null
           saldo_ultima_atualizacao: string | null
           status: string
           tipo: string
@@ -357,6 +358,7 @@ export type Database = {
           pagamento_minimo?: number | null
           parcela_atual?: number
           saldo_atual?: number | null
+          saldo_inicial?: number | null
           saldo_ultima_atualizacao?: string | null
           status?: string
           tipo: string
@@ -381,6 +383,7 @@ export type Database = {
           pagamento_minimo?: number | null
           parcela_atual?: number
           saldo_atual?: number | null
+          saldo_inicial?: number | null
           saldo_ultima_atualizacao?: string | null
           status?: string
           tipo?: string
@@ -443,13 +446,16 @@ export type Database = {
           },
         ]
       }
-      contas_saldo_pagamentos: {
+      contas_saldo_movimentacoes: {
         Row: {
           conta_pagar_id: string
           created_at: string | null
           data: string
-          descricao: string | null
           id: string
+          observacao: string | null
+          saldo_anterior: number
+          saldo_resultante: number
+          tipo_movimentacao: string
           user_id: string
           valor: number
         }
@@ -457,8 +463,11 @@ export type Database = {
           conta_pagar_id: string
           created_at?: string | null
           data?: string
-          descricao?: string | null
           id?: string
+          observacao?: string | null
+          saldo_anterior: number
+          saldo_resultante: number
+          tipo_movimentacao: string
           user_id: string
           valor: number
         }
@@ -466,14 +475,17 @@ export type Database = {
           conta_pagar_id?: string
           created_at?: string | null
           data?: string
-          descricao?: string | null
           id?: string
+          observacao?: string | null
+          saldo_anterior?: number
+          saldo_resultante?: number
+          tipo_movimentacao?: string
           user_id?: string
           valor?: number
         }
         Relationships: [
           {
-            foreignKeyName: "contas_saldo_pagamentos_conta_pagar_id_fkey"
+            foreignKeyName: "contas_saldo_movimentacoes_conta_pagar_id_fkey"
             columns: ["conta_pagar_id"]
             isOneToOne: false
             referencedRelation: "contas_a_pagar"
@@ -1229,6 +1241,26 @@ export type Database = {
             columns: ["ativo_id"]
             isOneToOne: false
             referencedRelation: "ativos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vw_contas_saldo_resumo_mensal: {
+        Row: {
+          conta_pagar_id: string | null
+          mes: string | null
+          qtd_movimentacoes: number | null
+          total_acrescido: number | null
+          total_ajuste_reducao: number | null
+          total_pago: number | null
+          user_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contas_saldo_movimentacoes_conta_pagar_id_fkey"
+            columns: ["conta_pagar_id"]
+            isOneToOne: false
+            referencedRelation: "contas_a_pagar"
             referencedColumns: ["id"]
           },
         ]

@@ -1,42 +1,44 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useContasAPagar } from '@/hooks/useContasAPagar';
 import { ContasAPagarResumo } from '@/components/contasAPagar/ContasAPagarResumo';
-import { ContasAPagarFiltros } from '@/components/contasAPagar/ContasAPagarFiltros';
-import { ContasAPagarTable } from '@/components/contasAPagar/ContasAPagarTable';
+import { ContasParceladasTable } from '@/components/contasAPagar/ContasParceladasTable';
+import { ContasSaldoSection } from '@/components/contasAPagar/ContasSaldoSection';
 import { ContaAPagarModal } from '@/components/contasAPagar/ContaAPagarModal';
+import { ContaSaldoDetalheDrawer } from '@/components/contasAPagar/ContaSaldoDetalheDrawer';
 import { ContaAPagarComCalculos, StatusContaAPagar, TipoContaAPagar, ModoContaAPagar } from '@/types/contasAPagar';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function ContasAPagar() {
   const {
-    contasAPagar,
+    contasParceladas,
+    contasSaldo,
     isLoading,
     processarBaixaAutomatica,
     createConta,
     updateConta,
     quitarConta,
-    atualizarSaldo,
-    adicionarPagamento,
+    registrarMovimentacao,
+    getMovimentacoesConta,
     isCreating,
     isUpdating,
     isQuiting,
-    isAtualizandoSaldo,
-    isAdicionandoPagamento,
+    isRegistrandoMovimentacao,
     instituicoes,
     resumo,
   } = useContasAPagar();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [contaEditando, setContaEditando] = useState<ContaAPagarComCalculos | null>(null);
+  const [contaSaldoDetalhe, setContaSaldoDetalhe] = useState<ContaAPagarComCalculos | null>(null);
   const [baixaProcessada, setBaixaProcessada] = useState(false);
+  const [activeTab, setActiveTab] = useState<'parceladas' | 'saldo'>('saldo');
 
   // Filtros
   const [statusFiltro, setStatusFiltro] = useState<StatusContaAPagar | 'todos'>('ativo');
-  const [modoFiltro, setModoFiltro] = useState<ModoContaAPagar | 'todos'>('todos');
   const [tipoFiltro, setTipoFiltro] = useState<TipoContaAPagar | 'todos'>('todos');
-  const [instituicaoFiltro, setInstituicaoFiltro] = useState<string>('todos');
 
   // Processar baixa automática ao entrar na aba
   useEffect(() => {
@@ -46,35 +48,37 @@ export default function ContasAPagar() {
     }
   }, [isLoading, baixaProcessada, processarBaixaAutomatica]);
 
-  // Aplicar filtros e ordenação
-  const contasFiltradas = useMemo(() => {
-    let resultado = [...contasAPagar];
+  // Aplicar filtros para parceladas
+  const contasParceladasFiltradas = useMemo(() => {
+    let resultado = [...contasParceladas];
 
-    // Filtro de status
     if (statusFiltro !== 'todos') {
       resultado = resultado.filter((c) => c.status === statusFiltro);
     }
 
-    // Filtro de modo
-    if (modoFiltro !== 'todos') {
-      resultado = resultado.filter((c) => c.modo === modoFiltro);
-    }
-
-    // Filtro de tipo
     if (tipoFiltro !== 'todos') {
       resultado = resultado.filter((c) => c.tipo === tipoFiltro);
     }
 
-    // Filtro de instituição
-    if (instituicaoFiltro !== 'todos') {
-      resultado = resultado.filter((c) => c.instituicao === instituicaoFiltro);
+    resultado.sort((a, b) => b.valor_restante - a.valor_restante);
+    return resultado;
+  }, [contasParceladas, statusFiltro, tipoFiltro]);
+
+  // Aplicar filtros para saldo
+  const contasSaldoFiltradas = useMemo(() => {
+    let resultado = [...contasSaldo];
+
+    if (statusFiltro !== 'todos') {
+      resultado = resultado.filter((c) => c.status === statusFiltro);
     }
 
-    // Ordenar por valor restante (maior primeiro)
-    resultado.sort((a, b) => b.valor_restante - a.valor_restante);
+    if (tipoFiltro !== 'todos') {
+      resultado = resultado.filter((c) => c.tipo === tipoFiltro);
+    }
 
+    resultado.sort((a, b) => b.valor_restante - a.valor_restante);
     return resultado;
-  }, [contasAPagar, statusFiltro, modoFiltro, tipoFiltro, instituicaoFiltro]);
+  }, [contasSaldo, statusFiltro, tipoFiltro]);
 
   const handleEdit = (conta: ContaAPagarComCalculos) => {
     setContaEditando(conta);
@@ -86,12 +90,8 @@ export default function ContasAPagar() {
     setContaEditando(null);
   };
 
-  const handleAtualizarSaldo = (id: string, novoSaldo: number) => {
-    atualizarSaldo({ id, novoSaldo });
-  };
-
-  const handleAdicionarPagamento = (id: string, valor: number, descricao: string, data: string) => {
-    adicionarPagamento({ id, valor, descricao, data });
+  const handleOpenDetalhe = (conta: ContaAPagarComCalculos) => {
+    setContaSaldoDetalhe(conta);
   };
 
   if (isLoading) {
@@ -119,7 +119,7 @@ export default function ContasAPagar() {
         <div>
           <h1 className="text-2xl font-bold">Contas a Pagar</h1>
           <p className="text-sm text-muted-foreground">
-            Controle de parcelas, empréstimos e saldos
+            Controle de parcelas, empréstimos e dívidas
           </p>
         </div>
         <Button onClick={() => setModalOpen(true)}>
@@ -129,39 +129,60 @@ export default function ContasAPagar() {
       </div>
 
       {/* Cards de Resumo */}
-      <ContasAPagarResumo
-        totalEmAberto={resumo.totalEmAberto}
-        compromissoMensal={resumo.compromissoMensal}
-        qtdAtivas={resumo.qtdAtivas}
-        variacaoTotalMes={resumo.variacaoTotalMes}
-      />
+      <ContasAPagarResumo resumo={resumo} activeTab={activeTab} />
 
-      {/* Filtros */}
-      <ContasAPagarFiltros
-        statusFiltro={statusFiltro}
-        setStatusFiltro={setStatusFiltro}
-        modoFiltro={modoFiltro}
-        setModoFiltro={setModoFiltro}
-        tipoFiltro={tipoFiltro}
-        setTipoFiltro={setTipoFiltro}
-        instituicaoFiltro={instituicaoFiltro}
-        setInstituicaoFiltro={setInstituicaoFiltro}
-        instituicoes={instituicoes}
-      />
+      {/* Tabs de Parceladas / Saldo */}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'parceladas' | 'saldo')}>
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="saldo" className="gap-2">
+            Contas Saldo
+            {resumo.qtdContasSaldo > 0 && (
+              <span className="rounded-full bg-secondary px-2 py-0.5 text-xs">
+                {resumo.qtdContasSaldo}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="parceladas" className="gap-2">
+            Parceladas
+            {resumo.qtdContasParceladas > 0 && (
+              <span className="rounded-full bg-secondary px-2 py-0.5 text-xs">
+                {resumo.qtdContasParceladas}
+              </span>
+            )}
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Tabela */}
-      <ContasAPagarTable
-        contas={contasFiltradas}
-        onEdit={handleEdit}
-        onQuitar={quitarConta}
-        onAtualizarSaldo={handleAtualizarSaldo}
-        onAdicionarPagamento={handleAdicionarPagamento}
-        isQuiting={isQuiting}
-        isAtualizandoSaldo={isAtualizandoSaldo}
-        isAdicionandoPagamento={isAdicionandoPagamento}
-      />
+        <TabsContent value="saldo" className="mt-6">
+          <ContasSaldoSection
+            contas={contasSaldoFiltradas}
+            onEdit={handleEdit}
+            onQuitar={quitarConta}
+            onOpenDetalhe={handleOpenDetalhe}
+            onRegistrarMovimentacao={registrarMovimentacao}
+            isQuiting={isQuiting}
+            isRegistrandoMovimentacao={isRegistrandoMovimentacao}
+            statusFiltro={statusFiltro}
+            setStatusFiltro={setStatusFiltro}
+            tipoFiltro={tipoFiltro}
+            setTipoFiltro={setTipoFiltro}
+          />
+        </TabsContent>
 
-      {/* Modal */}
+        <TabsContent value="parceladas" className="mt-6">
+          <ContasParceladasTable
+            contas={contasParceladasFiltradas}
+            onEdit={handleEdit}
+            onQuitar={quitarConta}
+            isQuiting={isQuiting}
+            statusFiltro={statusFiltro}
+            setStatusFiltro={setStatusFiltro}
+            tipoFiltro={tipoFiltro}
+            setTipoFiltro={setTipoFiltro}
+          />
+        </TabsContent>
+      </Tabs>
+
+      {/* Modal de Criar/Editar */}
       <ContaAPagarModal
         open={modalOpen}
         onOpenChange={handleCloseModal}
@@ -169,6 +190,15 @@ export default function ContasAPagar() {
         onSave={createConta}
         onUpdate={updateConta}
         isLoading={isCreating || isUpdating}
+      />
+
+      {/* Drawer de Detalhes da Conta Saldo */}
+      <ContaSaldoDetalheDrawer
+        conta={contaSaldoDetalhe}
+        onClose={() => setContaSaldoDetalhe(null)}
+        movimentacoes={contaSaldoDetalhe ? getMovimentacoesConta(contaSaldoDetalhe.id) : []}
+        onRegistrarMovimentacao={registrarMovimentacao}
+        isRegistrandoMovimentacao={isRegistrandoMovimentacao}
       />
     </div>
   );
