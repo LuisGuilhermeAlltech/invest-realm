@@ -17,13 +17,14 @@ import {
 } from '@/types/contasAPagar';
 import { formatCurrency } from '@/lib/formatters';
 import { DollarSign, PlusCircle, RefreshCw } from 'lucide-react';
+import { format } from 'date-fns';
 
 interface MovimentacaoSaldoModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   tipo: TipoMovimentacaoSaldo;
   conta: ContaAPagarComCalculos | null;
-  onConfirm: (valor: number, observacao: string) => void;
+  onConfirm: (valor: number, observacao: string, data: string) => void;
   isLoading?: boolean;
 }
 
@@ -37,12 +38,13 @@ export function MovimentacaoSaldoModal({
 }: MovimentacaoSaldoModalProps) {
   const [valor, setValor] = useState('');
   const [observacao, setObservacao] = useState('');
+  const [data, setData] = useState(format(new Date(), 'yyyy-MM-dd'));
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const valorNum = parseFloat(valor);
     if (isNaN(valorNum) || valorNum <= 0) return;
-    onConfirm(valorNum, observacao);
+    onConfirm(valorNum, observacao, data);
     setValor('');
     setObservacao('');
   };
@@ -50,6 +52,7 @@ export function MovimentacaoSaldoModal({
   const handleClose = () => {
     setValor('');
     setObservacao('');
+    setData(format(new Date(), 'yyyy-MM-dd'));
     onOpenChange(false);
   };
 
@@ -123,19 +126,31 @@ export function MovimentacaoSaldoModal({
             </p>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="valor">{getInputLabel()} *</Label>
-            <Input
-              id="valor"
-              type="number"
-              step="0.01"
-              min="0.01"
-              value={valor}
-              onChange={(e) => setValor(e.target.value)}
-              placeholder="R$ 0,00"
-              autoFocus
-              required
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="valor">{getInputLabel()} *</Label>
+              <Input
+                id="valor"
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={valor}
+                onChange={(e) => setValor(e.target.value)}
+                placeholder="R$ 0,00"
+                autoFocus
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="data">Data *</Label>
+              <Input
+                id="data"
+                type="date"
+                value={data}
+                onChange={(e) => setData(e.target.value)}
+                required
+              />
+            </div>
           </div>
 
           <div className="space-y-2">

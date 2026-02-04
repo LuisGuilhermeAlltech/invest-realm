@@ -52,7 +52,8 @@ interface ContasSaldoSectionProps {
     contaId: string; 
     tipo: TipoMovimentacaoSaldo; 
     valor: number; 
-    observacao?: string 
+    observacao?: string;
+    data?: string;
   }) => void;
   isQuiting?: boolean;
   isRegistrandoMovimentacao?: boolean;
@@ -85,7 +86,7 @@ export function ContasSaldoSection({
     setMovModalOpen(true);
   };
 
-  const handleConfirmMovimentacao = (valor: number, observacao: string) => {
+  const handleConfirmMovimentacao = (valor: number, observacao: string, data: string) => {
     if (!contaSelecionada) return;
     
     onRegistrarMovimentacao({
@@ -93,6 +94,7 @@ export function ContasSaldoSection({
       tipo: movModalTipo,
       valor,
       observacao: observacao || undefined,
+      data,
     });
     
     setMovModalOpen(false);

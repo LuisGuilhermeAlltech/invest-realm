@@ -44,7 +44,8 @@ interface ContaSaldoDetalheDrawerProps {
     contaId: string; 
     tipo: TipoMovimentacaoSaldo; 
     valor: number; 
-    observacao?: string 
+    observacao?: string;
+    data?: string;
   }) => void;
   isRegistrandoMovimentacao?: boolean;
 }
@@ -66,12 +67,13 @@ export function ContaSaldoDetalheDrawer({
     setMovModalOpen(true);
   };
 
-  const handleConfirmMovimentacao = (valor: number, observacao: string) => {
+  const handleConfirmMovimentacao = (valor: number, observacao: string, data: string) => {
     onRegistrarMovimentacao({
       contaId: conta.id,
       tipo: movModalTipo,
       valor,
       observacao: observacao || undefined,
+      data,
     });
     setMovModalOpen(false);
   };
