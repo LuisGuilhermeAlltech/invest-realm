@@ -78,37 +78,24 @@ export function useContasAPagar() {
     enabled: !!user,
   });
 
-  // Função para calcular parcela atual baseada na data de início
-  const calcularParcelaAtualPorData = (dataInicio: string | null, totalParcelas: number): number => {
-    if (!dataInicio) return 0;
-    
-    const inicio = startOfMonth(parseISO(dataInicio));
-    const hoje = startOfMonth(new Date());
-    const mesesPassados = differenceInMonths(hoje, inicio);
-    
-    if (mesesPassados < 0) return 0;
-    return Math.min(mesesPassados + 1, totalParcelas);
-  };
-
   // Função para calcular campos derivados
+  // NOTE: For 'parcelada' mode, all payment info comes from installments table
+  // This hook only provides basic fields - real counts come from useInstallments
   const calcularCamposDerivados = (conta: ContaAPagar): ContaAPagarComCalculos => {
     const { inicio, fim } = getMesAtualInicioFim();
     
     if (conta.modo === 'parcelada') {
       const totalParcelas = conta.total_parcelas || 0;
       const valorParcela = conta.valor_parcela || 0;
-      const parcelaAtual = calcularParcelaAtualPorData(conta.data_inicio, totalParcelas);
       
-      const parcelas_restantes = Math.max(totalParcelas - parcelaAtual, 0);
-      const valor_restante = parcelas_restantes * valorParcela;
-      const parcelas_formatado = `${parcelaAtual}/${totalParcelas}`;
-
+      // Don't calculate payment info here - comes from useInstallments
+      // These are placeholder values; real data comes from getBillSummary
       return {
         ...conta,
-        parcelas_restantes,
-        valor_restante,
+        parcelas_restantes: totalParcelas, // Placeholder, real value from installments
+        valor_restante: totalParcelas * valorParcela, // Placeholder
         compromisso_mensal: valorParcela,
-        parcelas_formatado,
+        parcelas_formatado: `0/${totalParcelas}`, // Placeholder, real from installments
         variacao_mensal: 0,
         total_pago_mes: 0,
         total_acrescido_mes: 0,

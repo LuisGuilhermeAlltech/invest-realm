@@ -43,7 +43,6 @@ interface ContasParceladasTableProps {
     nextPending: Installment | undefined;
     totalRemaining: number;
     totalPaid: number;
-    currentInstallment: number;
     formattedProgress: string;
   };
   onPayInstallment: (data: {
