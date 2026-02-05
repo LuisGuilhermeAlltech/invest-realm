@@ -259,7 +259,7 @@ export default function Dashboard() {
                     <Info className="h-3 w-3 text-muted-foreground" />
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p className="text-sm">Financeiro Gastos + A Pagar no mês</p>
+                    <p className="text-sm">Gastos efetivamente pagos (Financeiro)</p>
                   </TooltipContent>
                 </Tooltip>
               </div>
@@ -267,9 +267,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-xl font-bold font-mono text-negative">{formatCurrency(saidasDoMes)}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Gastos: {formatCurrency(financeiroGastos)} + A Pagar: {formatCurrency(pagarNoMes)}
-              </p>
+              <p className="text-xs text-muted-foreground mt-1">Gastos efetivamente pagos</p>
             </CardContent>
           </Card>
           <Card className={cn("border-border", resultadoDoMes >= 0 ? "bg-positive/5" : "bg-negative/5")}>
@@ -314,7 +312,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-xl font-bold font-mono">{formatCurrency(pagarNoMes)}</div>
-              <p className="text-xs text-muted-foreground mt-1">Parcelas + Saldo + Cartão</p>
+              <p className="text-xs text-muted-foreground mt-1">Compromissos do mês (não pagos)</p>
             </CardContent>
           </Card>
           <Card className="border-border">
