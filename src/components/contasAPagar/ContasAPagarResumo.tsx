@@ -16,11 +16,12 @@ interface ResumoData {
   totalParcelasEmAberto: number;
   compromissoMensalParceladas: number;
   qtdContasParceladas: number;
+  totalCartaoMes?: number;
 }
 
 interface ContasAPagarResumoProps {
   resumo: ResumoData;
-  activeTab: 'parceladas' | 'saldo';
+  activeTab: 'parceladas' | 'saldo' | 'cartao';
 }
 
 export function ContasAPagarResumo({ resumo, activeTab }: ContasAPagarResumoProps) {
@@ -99,6 +100,72 @@ export function ContasAPagarResumo({ resumo, activeTab }: ContasAPagarResumoProp
             <Progress value={resumo.progressoMedioMetas} className="h-2 mt-2" />
             <p className="text-xs text-muted-foreground mt-1">
               Progresso médio das metas
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (activeTab === 'cartao') {
+    return (
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Gasto no Mês</CardTitle>
+            <CreditCard className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-destructive">
+              {formatCurrency(resumo.totalCartaoMes || 0, 'BRL')}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Compras à vista no cartão
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Geral</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {formatCurrency(resumo.totalEmAberto, 'BRL')}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Parcelas + Saldos
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Compromisso Mensal</CardTitle>
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-amber-600">
+              {formatCurrency(resumo.compromissoMensal, 'BRL')}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Saldos + Parcelas do mês
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Contas Ativas</CardTitle>
+            <Wallet className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {resumo.qtdAtivas}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {resumo.qtdContasSaldo} saldo + {resumo.qtdContasParceladas} parceladas
             </p>
           </CardContent>
         </Card>
