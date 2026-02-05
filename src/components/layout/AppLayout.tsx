@@ -31,7 +31,7 @@ const navItems = [
   { path: '/proventos', label: 'Proventos', icon: Coins },
   { path: '/metas', label: 'Metas', icon: Target },
   { path: '/financeiro', label: 'Financeiro', icon: Calculator },
-  { path: '/contas-a-pagar', label: 'Contas a Pagar', icon: CreditCard },
+  { path: '/contas-a-pagar', label: 'Contas', icon: CreditCard },
   { path: '/agente-aporte', label: 'Agente de Aporte', icon: TrendingUp },
   { path: '/cadastros', label: 'Cadastros', icon: Settings },
 ];

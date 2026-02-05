@@ -1,32 +1,41 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useContasAPagar } from '@/hooks/useContasAPagar';
 import { useInstallments } from '@/hooks/useInstallments';
 import { useCardPurchases } from '@/hooks/useCardPurchases';
+import { useReceivables } from '@/hooks/useReceivables';
 import { ContasAPagarResumo } from '@/components/contasAPagar/ContasAPagarResumo';
 import { ContasParceladasTable } from '@/components/contasAPagar/ContasParceladasTable';
 import { ContasSaldoSection } from '@/components/contasAPagar/ContasSaldoSection';
 import { CardPurchasesSection } from '@/components/contasAPagar/CardPurchasesSection';
 import { ContaAPagarModal } from '@/components/contasAPagar/ContaAPagarModal';
 import { ContaSaldoDetalheDrawer } from '@/components/contasAPagar/ContaSaldoDetalheDrawer';
+import { ReceivableSaldoSection } from '@/components/contasReceber/ReceivableSaldoSection';
+import { ReceivableParceladoSection } from '@/components/contasReceber/ReceivableParceladoSection';
+import { NovaContaReceberModal } from '@/components/contasReceber/NovaContaReceberModal';
+import { ContasDashboard } from '@/components/contas/ContasDashboard';
 import { ContaAPagarComCalculos, StatusContaAPagar, TipoContaAPagar } from '@/types/contasAPagar';
+import { ReceivableWithCalculations, ReceivableStatus } from '@/types/receivables';
 import { Skeleton } from '@/components/ui/skeleton';
+
+type MainTab = 'pagar' | 'receber' | 'dashboard';
+type PayableSubTab = 'saldo' | 'parceladas' | 'cartao';
+type ReceivableSubTab = 'saldo' | 'parceladas';
 
 export default function ContasAPagar() {
   const {
     contasParceladas,
     contasSaldo,
-    isLoading,
-    processarBaixaAutomatica,
+    isLoading: isLoadingPayables,
     createConta,
     updateConta,
     quitarConta,
     registrarMovimentacao,
     getMovimentacoesConta,
-    isCreating,
-    isUpdating,
+    isCreating: isCreatingPayable,
+    isUpdating: isUpdatingPayable,
     isQuiting,
     isRegistrandoMovimentacao,
     resumo,
@@ -53,23 +62,40 @@ export default function ContasAPagar() {
     getMonthlyTotal,
   } = useCardPurchases();
 
-  const [modalOpen, setModalOpen] = useState(false);
+  const {
+    receivablesSaldo,
+    receivablesParcelado,
+    installments: receivableInstallments,
+    isLoading: isLoadingReceivables,
+    createReceivable,
+    updateReceivable,
+    closeReceivable,
+    registerPayment,
+    isCreating: isCreatingReceivable,
+    isUpdating: isUpdatingReceivable,
+    isClosing,
+    isRegistering,
+  } = useReceivables();
+
+  // Main tabs
+  const [mainTab, setMainTab] = useState<MainTab>('dashboard');
+  const [payableSubTab, setPayableSubTab] = useState<PayableSubTab>('saldo');
+  const [receivableSubTab, setReceivableSubTab] = useState<ReceivableSubTab>('parceladas');
+
+  // Modals
+  const [modalPayableOpen, setModalPayableOpen] = useState(false);
   const [contaEditando, setContaEditando] = useState<ContaAPagarComCalculos | null>(null);
   const [contaSaldoDetalhe, setContaSaldoDetalhe] = useState<ContaAPagarComCalculos | null>(null);
-  const [baixaProcessada, setBaixaProcessada] = useState(false);
-  const [activeTab, setActiveTab] = useState<'parceladas' | 'saldo' | 'cartao'>('saldo');
+  
+  const [modalReceivableOpen, setModalReceivableOpen] = useState(false);
+  const [receivableEditando, setReceivableEditando] = useState<ReceivableWithCalculations | null>(null);
 
-  // Filtros
-  const [statusFiltro, setStatusFiltro] = useState<StatusContaAPagar | 'todos'>('ativo');
-  const [tipoFiltro, setTipoFiltro] = useState<TipoContaAPagar | 'todos'>('todos');
-
-  // Processar baixa automática ao entrar na aba (deprecated - now using installments)
-  useEffect(() => {
-    if (!baixaProcessada && !isLoading) {
-      // No longer automatically processing - installments handle this
-      setBaixaProcessada(true);
-    }
-  }, [isLoading, baixaProcessada]);
+  // Filters - Payables
+  const [statusFiltroPayable, setStatusFiltroPayable] = useState<StatusContaAPagar | 'todos'>('ativo');
+  const [tipoFiltroPayable, setTipoFiltroPayable] = useState<TipoContaAPagar | 'todos'>('todos');
+  
+  // Filters - Receivables
+  const [statusFiltroReceivable, setStatusFiltroReceivable] = useState<ReceivableStatus | 'todos'>('active');
 
   // Calculate real-time resumo based on installments
   const realTimeResumo = useMemo(() => {
@@ -77,11 +103,8 @@ export default function ContasAPagar() {
     const mesAtual = hoje.getMonth() + 1;
     const anoAtual = hoje.getFullYear();
 
-    // Use installments for parceladas calculations
     const compromissoMensalParceladas = getMonthlyCommitment(anoAtual, mesAtual);
     const totalParcelasEmAberto = getTotalPending();
-
-    // Card purchases for current month
     const totalCartaoMes = getMonthlyTotal(anoAtual, mesAtual);
 
     return {
@@ -89,57 +112,68 @@ export default function ContasAPagar() {
       compromissoMensalParceladas,
       totalParcelasEmAberto,
       totalCartaoMes,
-      // Override total em aberto to use installments-based calculation
       totalEmAberto: totalParcelasEmAberto + resumo.totalSaldoAtual,
       compromissoMensal: compromissoMensalParceladas + resumo.compromissoMensal - resumo.compromissoMensalParceladas,
     };
   }, [resumo, getMonthlyCommitment, getTotalPending, getMonthlyTotal]);
 
-  // Aplicar filtros para parceladas
+  // Filter payables
   const contasParceladasFiltradas = useMemo(() => {
     let resultado = [...contasParceladas];
-
-    if (statusFiltro !== 'todos') {
-      resultado = resultado.filter((c) => c.status === statusFiltro);
+    if (statusFiltroPayable !== 'todos') {
+      resultado = resultado.filter((c) => c.status === statusFiltroPayable);
     }
-
-    if (tipoFiltro !== 'todos') {
-      resultado = resultado.filter((c) => c.tipo === tipoFiltro);
+    if (tipoFiltroPayable !== 'todos') {
+      resultado = resultado.filter((c) => c.tipo === tipoFiltroPayable);
     }
-
     resultado.sort((a, b) => b.valor_restante - a.valor_restante);
     return resultado;
-  }, [contasParceladas, statusFiltro, tipoFiltro]);
+  }, [contasParceladas, statusFiltroPayable, tipoFiltroPayable]);
 
-  // Aplicar filtros para saldo
   const contasSaldoFiltradas = useMemo(() => {
     let resultado = [...contasSaldo];
-
-    if (statusFiltro !== 'todos') {
-      resultado = resultado.filter((c) => c.status === statusFiltro);
+    if (statusFiltroPayable !== 'todos') {
+      resultado = resultado.filter((c) => c.status === statusFiltroPayable);
     }
-
-    if (tipoFiltro !== 'todos') {
-      resultado = resultado.filter((c) => c.tipo === tipoFiltro);
+    if (tipoFiltroPayable !== 'todos') {
+      resultado = resultado.filter((c) => c.tipo === tipoFiltroPayable);
     }
-
     resultado.sort((a, b) => b.valor_restante - a.valor_restante);
     return resultado;
-  }, [contasSaldo, statusFiltro, tipoFiltro]);
+  }, [contasSaldo, statusFiltroPayable, tipoFiltroPayable]);
 
-  const handleEdit = (conta: ContaAPagarComCalculos) => {
+  // Filter receivables
+  const receivablesSaldoFiltradas = useMemo(() => {
+    if (statusFiltroReceivable === 'todos') return receivablesSaldo;
+    return receivablesSaldo.filter((r) => r.status === statusFiltroReceivable);
+  }, [receivablesSaldo, statusFiltroReceivable]);
+
+  const receivablesParceladoFiltradas = useMemo(() => {
+    if (statusFiltroReceivable === 'todos') return receivablesParcelado;
+    return receivablesParcelado.filter((r) => r.status === statusFiltroReceivable);
+  }, [receivablesParcelado, statusFiltroReceivable]);
+
+  const handleEditPayable = (conta: ContaAPagarComCalculos) => {
     setContaEditando(conta);
-    setModalOpen(true);
+    setModalPayableOpen(true);
   };
 
-  const handleCloseModal = () => {
-    setModalOpen(false);
+  const handleClosePayableModal = () => {
+    setModalPayableOpen(false);
     setContaEditando(null);
   };
 
-  const handleOpenDetalhe = (conta: ContaAPagarComCalculos) => {
-    setContaSaldoDetalhe(conta);
+  const handleEditReceivable = (receivable: ReceivableWithCalculations) => {
+    setReceivableEditando(receivable);
+    setModalReceivableOpen(true);
   };
+
+  const handleCloseReceivableModal = () => {
+    setModalReceivableOpen(false);
+    setReceivableEditando(null);
+  };
+
+  const isLoading = isLoadingPayables || isLoadingReceivables;
 
   if (isLoading) {
     return (
@@ -164,112 +198,197 @@ export default function ContasAPagar() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Contas a Pagar</h1>
+          <h1 className="text-2xl font-bold">Contas</h1>
           <p className="text-sm text-muted-foreground">
-            Controle de parcelas, empréstimos, dívidas e compras no cartão
+            Controle de contas a pagar e a receber
           </p>
         </div>
-        <Button onClick={() => setModalOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Nova Conta
-        </Button>
+        <div className="flex gap-2">
+          {mainTab === 'pagar' && (
+            <Button onClick={() => setModalPayableOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Nova Conta a Pagar
+            </Button>
+          )}
+          {mainTab === 'receber' && (
+            <Button onClick={() => setModalReceivableOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Nova Conta a Receber
+            </Button>
+          )}
+        </div>
       </div>
 
-      {/* Cards de Resumo */}
-      <ContasAPagarResumo resumo={realTimeResumo} activeTab={activeTab} />
-
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'parceladas' | 'saldo' | 'cartao')}>
-        <TabsList className="grid w-full max-w-lg grid-cols-3">
-          <TabsTrigger value="saldo" className="gap-2">
-            Contas Saldo
-            {resumo.qtdContasSaldo > 0 && (
-              <span className="rounded-full bg-secondary px-2 py-0.5 text-xs">
-                {resumo.qtdContasSaldo}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="parceladas" className="gap-2">
-            Parceladas
-            {resumo.qtdContasParceladas > 0 && (
-              <span className="rounded-full bg-secondary px-2 py-0.5 text-xs">
-                {resumo.qtdContasParceladas}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="cartao" className="gap-2">
-            Cartão à Vista
-            {cardPurchases.length > 0 && (
-              <span className="rounded-full bg-secondary px-2 py-0.5 text-xs">
-                {cardPurchases.length}
-              </span>
-            )}
-          </TabsTrigger>
+      {/* Main Tabs */}
+      <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as MainTab)}>
+        <TabsList className="grid w-full max-w-md grid-cols-3">
+          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+          <TabsTrigger value="pagar">A Pagar</TabsTrigger>
+          <TabsTrigger value="receber">A Receber</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="saldo" className="mt-6">
-          <ContasSaldoSection
-            contas={contasSaldoFiltradas}
-            onEdit={handleEdit}
-            onQuitar={quitarConta}
-            onOpenDetalhe={handleOpenDetalhe}
-            onRegistrarMovimentacao={registrarMovimentacao}
-            isQuiting={isQuiting}
-            isRegistrandoMovimentacao={isRegistrandoMovimentacao}
-            statusFiltro={statusFiltro}
-            setStatusFiltro={setStatusFiltro}
-            tipoFiltro={tipoFiltro}
-            setTipoFiltro={setTipoFiltro}
-          />
+        {/* Dashboard Tab */}
+        <TabsContent value="dashboard" className="mt-6">
+          <ContasDashboard />
         </TabsContent>
 
-        <TabsContent value="parceladas" className="mt-6">
-          <ContasParceladasTable
-            contas={contasParceladasFiltradas}
-            onEdit={handleEdit}
-            onQuitar={quitarConta}
-            isQuiting={isQuiting}
-            statusFiltro={statusFiltro}
-            setStatusFiltro={setStatusFiltro}
-            tipoFiltro={tipoFiltro}
-            setTipoFiltro={setTipoFiltro}
-            getBillSummary={getBillSummary}
-          />
+        {/* A Pagar Tab */}
+        <TabsContent value="pagar" className="mt-6">
+          <ContasAPagarResumo resumo={realTimeResumo} activeTab={payableSubTab} />
+          
+          <Tabs value={payableSubTab} onValueChange={(v) => setPayableSubTab(v as PayableSubTab)} className="mt-6">
+            <TabsList className="grid w-full max-w-lg grid-cols-3">
+              <TabsTrigger value="saldo" className="gap-2">
+                Contas Saldo
+                {resumo.qtdContasSaldo > 0 && (
+                  <span className="rounded-full bg-secondary px-2 py-0.5 text-xs">
+                    {resumo.qtdContasSaldo}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="parceladas" className="gap-2">
+                Parceladas
+                {resumo.qtdContasParceladas > 0 && (
+                  <span className="rounded-full bg-secondary px-2 py-0.5 text-xs">
+                    {resumo.qtdContasParceladas}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="cartao" className="gap-2">
+                Cartão à Vista
+                {cardPurchases.length > 0 && (
+                  <span className="rounded-full bg-secondary px-2 py-0.5 text-xs">
+                    {cardPurchases.length}
+                  </span>
+                )}
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="saldo" className="mt-6">
+              <ContasSaldoSection
+                contas={contasSaldoFiltradas}
+                onEdit={handleEditPayable}
+                onQuitar={quitarConta}
+                onOpenDetalhe={setContaSaldoDetalhe}
+                onRegistrarMovimentacao={registrarMovimentacao}
+                isQuiting={isQuiting}
+                isRegistrandoMovimentacao={isRegistrandoMovimentacao}
+                statusFiltro={statusFiltroPayable}
+                setStatusFiltro={setStatusFiltroPayable}
+                tipoFiltro={tipoFiltroPayable}
+                setTipoFiltro={setTipoFiltroPayable}
+              />
+            </TabsContent>
+
+            <TabsContent value="parceladas" className="mt-6">
+              <ContasParceladasTable
+                contas={contasParceladasFiltradas}
+                onEdit={handleEditPayable}
+                onQuitar={quitarConta}
+                isQuiting={isQuiting}
+                statusFiltro={statusFiltroPayable}
+                setStatusFiltro={setStatusFiltroPayable}
+                tipoFiltro={tipoFiltroPayable}
+                setTipoFiltro={setTipoFiltroPayable}
+                getBillSummary={getBillSummary}
+              />
+            </TabsContent>
+
+            <TabsContent value="cartao" className="mt-6">
+              <CardPurchasesSection
+                purchases={cardPurchases}
+                onCreatePurchase={createPurchase}
+                onUpdatePurchase={updatePurchase}
+                onDeletePurchase={deletePurchase}
+                onMarkAsIncluded={markAsIncluded}
+                isCreating={isCreatingPurchase}
+                isUpdating={isUpdatingPurchase}
+                isDeleting={isDeletingPurchase}
+                existingCards={getCardNames()}
+                existingCategories={getCategories()}
+              />
+            </TabsContent>
+          </Tabs>
         </TabsContent>
 
-        <TabsContent value="cartao" className="mt-6">
-          <CardPurchasesSection
-            purchases={cardPurchases}
-            onCreatePurchase={createPurchase}
-            onUpdatePurchase={updatePurchase}
-            onDeletePurchase={deletePurchase}
-            onMarkAsIncluded={markAsIncluded}
-            isCreating={isCreatingPurchase}
-            isUpdating={isUpdatingPurchase}
-            isDeleting={isDeletingPurchase}
-            existingCards={getCardNames()}
-            existingCategories={getCategories()}
-          />
+        {/* A Receber Tab */}
+        <TabsContent value="receber" className="mt-6">
+          <Tabs value={receivableSubTab} onValueChange={(v) => setReceivableSubTab(v as ReceivableSubTab)}>
+            <TabsList className="grid w-full max-w-md grid-cols-2">
+              <TabsTrigger value="parceladas" className="gap-2">
+                Parceladas
+                {receivablesParcelado.length > 0 && (
+                  <span className="rounded-full bg-secondary px-2 py-0.5 text-xs">
+                    {receivablesParcelado.length}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="saldo" className="gap-2">
+                Contas Saldo
+                {receivablesSaldo.length > 0 && (
+                  <span className="rounded-full bg-secondary px-2 py-0.5 text-xs">
+                    {receivablesSaldo.length}
+                  </span>
+                )}
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="parceladas" className="mt-6">
+              <ReceivableParceladoSection
+                receivables={receivablesParceladoFiltradas}
+                installments={receivableInstallments}
+                onEdit={handleEditReceivable}
+                onClose={closeReceivable}
+                onRegisterPayment={registerPayment}
+                isClosing={isClosing}
+                isRegistering={isRegistering}
+                statusFiltro={statusFiltroReceivable}
+                setStatusFiltro={setStatusFiltroReceivable}
+              />
+            </TabsContent>
+
+            <TabsContent value="saldo" className="mt-6">
+              <ReceivableSaldoSection
+                receivables={receivablesSaldoFiltradas}
+                onEdit={handleEditReceivable}
+                onClose={closeReceivable}
+                onRegisterPayment={registerPayment}
+                isClosing={isClosing}
+                isRegistering={isRegistering}
+                statusFiltro={statusFiltroReceivable}
+                setStatusFiltro={setStatusFiltroReceivable}
+              />
+            </TabsContent>
+          </Tabs>
         </TabsContent>
       </Tabs>
 
-      {/* Modal de Criar/Editar */}
+      {/* Modals - Payables */}
       <ContaAPagarModal
-        open={modalOpen}
-        onOpenChange={handleCloseModal}
+        open={modalPayableOpen}
+        onOpenChange={handleClosePayableModal}
         conta={contaEditando}
         onSave={createConta}
         onUpdate={updateConta}
-        isLoading={isCreating || isUpdating}
+        isLoading={isCreatingPayable || isUpdatingPayable}
       />
 
-      {/* Drawer de Detalhes da Conta Saldo */}
       <ContaSaldoDetalheDrawer
         conta={contaSaldoDetalhe}
         onClose={() => setContaSaldoDetalhe(null)}
         movimentacoes={contaSaldoDetalhe ? getMovimentacoesConta(contaSaldoDetalhe.id) : []}
         onRegistrarMovimentacao={registrarMovimentacao}
         isRegistrandoMovimentacao={isRegistrandoMovimentacao}
+      />
+
+      {/* Modals - Receivables */}
+      <NovaContaReceberModal
+        open={modalReceivableOpen}
+        onOpenChange={handleCloseReceivableModal}
+        receivable={receivableEditando}
+        onSave={async (data) => { await createReceivable(data); }}
+        onUpdate={async (data) => { await updateReceivable(data); }}
+        isLoading={isCreatingReceivable || isUpdatingReceivable}
       />
     </div>
   );

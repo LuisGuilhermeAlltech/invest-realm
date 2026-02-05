@@ -1194,6 +1194,193 @@ export type Database = {
         }
         Relationships: []
       }
+      receivable_installments: {
+        Row: {
+          amount: number
+          created_at: string
+          due_date: string
+          id: string
+          installment_number: number
+          notes: string | null
+          receivable_id: string
+          received_amount: number
+          received_at: string | null
+          status: Database["public"]["Enums"]["receivable_installment_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          due_date: string
+          id?: string
+          installment_number: number
+          notes?: string | null
+          receivable_id: string
+          received_amount?: number
+          received_at?: string | null
+          status?: Database["public"]["Enums"]["receivable_installment_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          due_date?: string
+          id?: string
+          installment_number?: number
+          notes?: string | null
+          receivable_id?: string
+          received_amount?: number
+          received_at?: string | null
+          status?: Database["public"]["Enums"]["receivable_installment_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "receivable_installments_receivable_id_fkey"
+            columns: ["receivable_id"]
+            isOneToOne: false
+            referencedRelation: "receivables"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      receivable_payments: {
+        Row: {
+          account_in_id: string | null
+          amount: number
+          attachment_url: string | null
+          created_at: string
+          id: string
+          method: Database["public"]["Enums"]["receivable_payment_method"]
+          notes: string | null
+          paid_at: string
+          receivable_id: string
+          receivable_installment_id: string | null
+          user_id: string
+        }
+        Insert: {
+          account_in_id?: string | null
+          amount: number
+          attachment_url?: string | null
+          created_at?: string
+          id?: string
+          method: Database["public"]["Enums"]["receivable_payment_method"]
+          notes?: string | null
+          paid_at: string
+          receivable_id: string
+          receivable_installment_id?: string | null
+          user_id: string
+        }
+        Update: {
+          account_in_id?: string | null
+          amount?: number
+          attachment_url?: string | null
+          created_at?: string
+          id?: string
+          method?: Database["public"]["Enums"]["receivable_payment_method"]
+          notes?: string | null
+          paid_at?: string
+          receivable_id?: string
+          receivable_installment_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "receivable_payments_account_in_id_fkey"
+            columns: ["account_in_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "receivable_payments_account_in_id_fkey"
+            columns: ["account_in_id"]
+            isOneToOne: false
+            referencedRelation: "vw_saldo_contas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "receivable_payments_receivable_id_fkey"
+            columns: ["receivable_id"]
+            isOneToOne: false
+            referencedRelation: "receivables"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "receivable_payments_receivable_installment_id_fkey"
+            columns: ["receivable_installment_id"]
+            isOneToOne: false
+            referencedRelation: "receivable_installments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      receivables: {
+        Row: {
+          category: string | null
+          created_at: string
+          current_balance: number | null
+          description: string
+          due_day: number | null
+          expected_monthly: number | null
+          id: string
+          initial_balance: number | null
+          installment_amount: number | null
+          notes: string | null
+          payer: string
+          start_date: string | null
+          status: Database["public"]["Enums"]["receivable_status"]
+          total_amount: number | null
+          total_installments: number | null
+          type: Database["public"]["Enums"]["receivable_type"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          current_balance?: number | null
+          description: string
+          due_day?: number | null
+          expected_monthly?: number | null
+          id?: string
+          initial_balance?: number | null
+          installment_amount?: number | null
+          notes?: string | null
+          payer: string
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["receivable_status"]
+          total_amount?: number | null
+          total_installments?: number | null
+          type: Database["public"]["Enums"]["receivable_type"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          current_balance?: number | null
+          description?: string
+          due_day?: number | null
+          expected_monthly?: number | null
+          id?: string
+          initial_balance?: number | null
+          installment_amount?: number | null
+          notes?: string | null
+          payer?: string
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["receivable_status"]
+          total_amount?: number | null
+          total_installments?: number | null
+          type?: Database["public"]["Enums"]["receivable_type"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       tipos_gasto: {
         Row: {
           ativo: boolean | null
@@ -1597,6 +1784,17 @@ export type Database = {
         }
         Returns: undefined
       }
+      generate_receivable_installments: {
+        Args: {
+          p_due_day: number
+          p_installment_amount: number
+          p_receivable_id: string
+          p_start_date: string
+          p_total_installments: number
+          p_user_id: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       classe_ativo: "renda_fixa" | "fii" | "acoes_br" | "acoes_eua" | "cripto"
@@ -1610,6 +1808,20 @@ export type Database = {
         | "dinheiro"
         | "outro"
         | "automatic"
+      receivable_installment_status:
+        | "pending"
+        | "received"
+        | "overdue"
+        | "partial"
+      receivable_payment_method:
+        | "pix"
+        | "dinheiro"
+        | "transferencia"
+        | "cartao"
+        | "boleto"
+        | "outro"
+      receivable_status: "active" | "closed"
+      receivable_type: "saldo" | "parcelado"
       tipo_categoria_financeira:
         | "essencial"
         | "nao_essencial"
@@ -1763,6 +1975,22 @@ export const Constants = {
         "outro",
         "automatic",
       ],
+      receivable_installment_status: [
+        "pending",
+        "received",
+        "overdue",
+        "partial",
+      ],
+      receivable_payment_method: [
+        "pix",
+        "dinheiro",
+        "transferencia",
+        "cartao",
+        "boleto",
+        "outro",
+      ],
+      receivable_status: ["active", "closed"],
+      receivable_type: ["saldo", "parcelado"],
       tipo_categoria_financeira: [
         "essencial",
         "nao_essencial",
