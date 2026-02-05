@@ -122,6 +122,54 @@ export type Database = {
         }
         Relationships: []
       }
+      card_purchases: {
+        Row: {
+          amount: number
+          card_name: string
+          category: string
+          created_at: string
+          description: string
+          id: string
+          included_in_statement_month: string | null
+          notes: string | null
+          purchase_date: string
+          receipt_url: string | null
+          store: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          card_name: string
+          category: string
+          created_at?: string
+          description: string
+          id?: string
+          included_in_statement_month?: string | null
+          notes?: string | null
+          purchase_date: string
+          receipt_url?: string | null
+          store?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          card_name?: string
+          category?: string
+          created_at?: string
+          description?: string
+          id?: string
+          included_in_statement_month?: string | null
+          notes?: string | null
+          purchase_date?: string
+          receipt_url?: string | null
+          store?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       cash_transactions: {
         Row: {
           ativo_id: string | null
@@ -715,6 +763,62 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      installments: {
+        Row: {
+          amount: number
+          conta_pagar_id: string
+          created_at: string
+          due_date: string
+          id: string
+          installment_number: number
+          notes: string | null
+          paid_amount: number | null
+          paid_at: string | null
+          payment_method: Database["public"]["Enums"]["payment_method"] | null
+          status: Database["public"]["Enums"]["installment_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          conta_pagar_id: string
+          created_at?: string
+          due_date: string
+          id?: string
+          installment_number: number
+          notes?: string | null
+          paid_amount?: number | null
+          paid_at?: string | null
+          payment_method?: Database["public"]["Enums"]["payment_method"] | null
+          status?: Database["public"]["Enums"]["installment_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          conta_pagar_id?: string
+          created_at?: string
+          due_date?: string
+          id?: string
+          installment_number?: number
+          notes?: string | null
+          paid_amount?: number | null
+          paid_at?: string | null
+          payment_method?: Database["public"]["Enums"]["payment_method"] | null
+          status?: Database["public"]["Enums"]["installment_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "installments_conta_pagar_id_fkey"
+            columns: ["conta_pagar_id"]
+            isOneToOne: false
+            referencedRelation: "contas_a_pagar"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       limites_tipo_gasto: {
         Row: {
@@ -1480,11 +1584,30 @@ export type Database = {
       }
     }
     Functions: {
-      [_ in never]: never
+      generate_installments_for_conta: {
+        Args: {
+          p_conta_id: string
+          p_data_inicio: string
+          p_dia_vencimento: number
+          p_parcela_atual?: number
+          p_total_parcelas: number
+          p_user_id: string
+          p_valor_parcela: number
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       classe_ativo: "renda_fixa" | "fii" | "acoes_br" | "acoes_eua" | "cripto"
+      installment_status: "pending" | "paid" | "overdue"
       moeda: "BRL" | "USD"
+      payment_method:
+        | "cartao"
+        | "pix"
+        | "boleto"
+        | "transferencia"
+        | "dinheiro"
+        | "outro"
       tipo_categoria_financeira:
         | "essencial"
         | "nao_essencial"
@@ -1627,7 +1750,16 @@ export const Constants = {
   public: {
     Enums: {
       classe_ativo: ["renda_fixa", "fii", "acoes_br", "acoes_eua", "cripto"],
+      installment_status: ["pending", "paid", "overdue"],
       moeda: ["BRL", "USD"],
+      payment_method: [
+        "cartao",
+        "pix",
+        "boleto",
+        "transferencia",
+        "dinheiro",
+        "outro",
+      ],
       tipo_categoria_financeira: [
         "essencial",
         "nao_essencial",

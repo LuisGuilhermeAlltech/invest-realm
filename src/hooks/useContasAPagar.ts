@@ -392,6 +392,23 @@ export function useContasAPagar() {
 
       if (error) throw error;
 
+      // Se for modo parcelada, gerar parcelas
+      if (novaConta.modo === 'parcelada' && novaConta.total_parcelas && novaConta.data_inicio) {
+        const { error: installmentsError } = await supabase.rpc('generate_installments_for_conta', {
+          p_conta_id: data.id,
+          p_user_id: user.id,
+          p_data_inicio: novaConta.data_inicio,
+          p_dia_vencimento: novaConta.dia_vencimento!,
+          p_total_parcelas: novaConta.total_parcelas,
+          p_valor_parcela: novaConta.valor_parcela || 0,
+          p_parcela_atual: 1,
+        });
+
+        if (installmentsError) {
+          console.error('Erro ao gerar parcelas:', installmentsError);
+        }
+      }
+
       // Se for modo saldo, criar registro inicial no histórico e movimentação inicial
       if (novaConta.modo === 'saldo' && novaConta.saldo_atual) {
         const competenciaAtual = getCompetenciaAtual();
@@ -426,6 +443,7 @@ export function useContasAPagar() {
       queryClient.invalidateQueries({ queryKey: ['contas_a_pagar', user?.id] });
       queryClient.invalidateQueries({ queryKey: ['contas_saldo_historico', user?.id] });
       queryClient.invalidateQueries({ queryKey: ['contas_saldo_movimentacoes', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['installments', user?.id] });
       toast.success('Conta a pagar criada com sucesso!');
     },
     onError: (error) => {
