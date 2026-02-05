@@ -194,6 +194,9 @@ export function ContasParceladasTable({
                           {nextStatus === 'overdue' && (
                             <span className="text-xs text-destructive">Atrasada</span>
                           )}
+                          {nextStatus === 'pending' && (
+                            <span className="text-xs text-muted-foreground">Baixa automática</span>
+                          )}
                         </div>
                       ) : (
                         <span className="text-green-600">Quitado</span>
@@ -223,12 +226,13 @@ export function ContasParceladasTable({
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center justify-center gap-1">
-                        {conta.status === 'ativo' && nextPending && (
+                        {/* Show manual payment only for overdue installments */}
+                        {conta.status === 'ativo' && nextPending && nextStatus === 'overdue' && (
                           <Button
                             variant="ghost"
                             size="icon"
                             onClick={() => handleOpenPayment(conta)}
-                            title="Registrar Pagamento"
+                            title="Registrar Pagamento Manual"
                             className="text-green-600 hover:text-green-700"
                           >
                             <DollarSign className="h-4 w-4" />
