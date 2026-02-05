@@ -1,5 +1,5 @@
 export type InstallmentStatus = 'pending' | 'paid' | 'overdue';
-export type PaymentMethod = 'cartao' | 'pix' | 'boleto' | 'transferencia' | 'dinheiro' | 'outro';
+export type PaymentMethod = 'cartao' | 'pix' | 'boleto' | 'transferencia' | 'dinheiro' | 'outro' | 'automatic';
 
 export interface Installment {
   id: string;
@@ -31,6 +31,7 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   transferencia: 'Transferência',
   dinheiro: 'Dinheiro',
   outro: 'Outro',
+  automatic: 'Automático',
 };
 
 export const INSTALLMENT_STATUS_LABELS: Record<InstallmentStatus, string> = {
