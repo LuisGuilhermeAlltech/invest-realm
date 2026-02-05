@@ -1584,6 +1584,7 @@ export type Database = {
       }
     }
     Functions: {
+      auto_pay_installments_today: { Args: never; Returns: number }
       generate_installments_for_conta: {
         Args: {
           p_conta_id: string
@@ -1608,6 +1609,7 @@ export type Database = {
         | "transferencia"
         | "dinheiro"
         | "outro"
+        | "automatic"
       tipo_categoria_financeira:
         | "essencial"
         | "nao_essencial"
@@ -1759,6 +1761,7 @@ export const Constants = {
         "transferencia",
         "dinheiro",
         "outro",
+        "automatic",
       ],
       tipo_categoria_financeira: [
         "essencial",
