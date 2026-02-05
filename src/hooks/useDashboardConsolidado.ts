@@ -297,8 +297,12 @@ export function useDashboardConsolidado(year: number, month: number) {
   const receberNoMes = receivablesQuery.data?.receberNoMes ?? 0;
   const pagarNoMes = payablesQuery.data?.pagarNoMes ?? 0;
 
+  // Entradas = Receitas Financeiras + Recebidos em A Receber
   const entradasDoMes = financeiroReceitas + recebidoNoMes;
-  const saidasDoMes = financeiroGastos + pagarNoMes;
+  // Saídas = APENAS gastos financeiros (pagamentos efetivos realizados)
+  // NÃO inclui parcelas a pagar (compromissos futuros)
+  const saidasDoMes = financeiroGastos;
+  // Resultado = Entradas - Saídas (fluxo de caixa real)
   const resultadoDoMes = entradasDoMes - saidasDoMes;
 
   return {
