@@ -39,11 +39,11 @@ export function useInstallments() {
     return installments.filter(i => i.conta_pagar_id === contaPagarId);
   };
 
-  // Get next pending installment for a bill
+  // Get next pending installment for a bill - sorted by due_date, NOT installment_number
   const getNextPendingInstallment = (contaPagarId: string): Installment | undefined => {
     return installments
       .filter(i => i.conta_pagar_id === contaPagarId && i.status !== 'paid')
-      .sort((a, b) => a.installment_number - b.installment_number)[0];
+      .sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())[0];
   };
 
   // Calculate real-time status based on due_date
@@ -188,30 +188,36 @@ export function useInstallments() {
     },
   });
 
-  // Calculate summary for a bill based on installments
+  // Calculate summary for a bill based on REAL installment status (not order/number)
   const getBillSummary = (contaPagarId: string) => {
     const billInstallments = getInstallmentsForBill(contaPagarId);
     
-    const pendingInstallments = billInstallments.filter(i => i.status !== 'paid');
+    // Count based ONLY on actual status field - NOT on installment_number
     const paidInstallments = billInstallments.filter(i => i.status === 'paid');
+    const pendingInstallments = billInstallments.filter(i => i.status !== 'paid');
     const overdueInstallments = pendingInstallments.filter(i => calculateCurrentStatus(i) === 'overdue');
     
-    const nextPending = getNextPendingInstallment(contaPagarId);
+    // Next pending: first pending by due_date (NOT by installment_number)
+    const nextPending = pendingInstallments
+      .sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())[0];
+    
     const totalRemaining = pendingInstallments.reduce((sum, i) => sum + Number(i.amount), 0);
     const totalPaid = paidInstallments.reduce((sum, i) => sum + Number(i.paid_amount || i.amount), 0);
 
+    // formattedProgress: X/Y where X = REAL paid count (status='paid'), Y = total
+    const paidCount = paidInstallments.length;
+    const totalCount = billInstallments.length;
+
     return {
-      totalInstallments: billInstallments.length,
-      paidCount: paidInstallments.length,
+      totalInstallments: totalCount,
+      paidCount,
       pendingCount: pendingInstallments.length,
       overdueCount: overdueInstallments.length,
       nextPending,
       totalRemaining,
       totalPaid,
-      currentInstallment: nextPending?.installment_number || billInstallments.length,
-      formattedProgress: nextPending 
-        ? `${nextPending.installment_number}/${billInstallments.length}`
-        : `${billInstallments.length}/${billInstallments.length}`,
+      // formattedProgress now shows real paid count, NOT installment_number
+      formattedProgress: `${paidCount}/${totalCount}`,
     };
   };
 
