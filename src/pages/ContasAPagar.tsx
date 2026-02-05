@@ -15,12 +15,11 @@ import { ContaSaldoDetalheDrawer } from '@/components/contasAPagar/ContaSaldoDet
 import { ReceivableSaldoSection } from '@/components/contasReceber/ReceivableSaldoSection';
 import { ReceivableParceladoSection } from '@/components/contasReceber/ReceivableParceladoSection';
 import { NovaContaReceberModal } from '@/components/contasReceber/NovaContaReceberModal';
-import { ContasDashboard } from '@/components/contas/ContasDashboard';
 import { ContaAPagarComCalculos, StatusContaAPagar, TipoContaAPagar } from '@/types/contasAPagar';
 import { ReceivableWithCalculations, ReceivableStatus } from '@/types/receivables';
 import { Skeleton } from '@/components/ui/skeleton';
 
-type MainTab = 'pagar' | 'receber' | 'dashboard';
+type MainTab = 'pagar' | 'receber';
 type PayableSubTab = 'saldo' | 'parceladas' | 'cartao';
 type ReceivableSubTab = 'saldo' | 'parceladas';
 
@@ -78,7 +77,7 @@ export default function ContasAPagar() {
   } = useReceivables();
 
   // Main tabs
-  const [mainTab, setMainTab] = useState<MainTab>('dashboard');
+  const [mainTab, setMainTab] = useState<MainTab>('pagar');
   const [payableSubTab, setPayableSubTab] = useState<PayableSubTab>('saldo');
   const [receivableSubTab, setReceivableSubTab] = useState<ReceivableSubTab>('parceladas');
 
@@ -221,16 +220,10 @@ export default function ContasAPagar() {
 
       {/* Main Tabs */}
       <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as MainTab)}>
-        <TabsList className="grid w-full max-w-md grid-cols-3">
-          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+        <TabsList className="grid w-full max-w-sm grid-cols-2">
           <TabsTrigger value="pagar">A Pagar</TabsTrigger>
           <TabsTrigger value="receber">A Receber</TabsTrigger>
         </TabsList>
-
-        {/* Dashboard Tab */}
-        <TabsContent value="dashboard" className="mt-6">
-          <ContasDashboard />
-        </TabsContent>
 
         {/* A Pagar Tab */}
         <TabsContent value="pagar" className="mt-6">
