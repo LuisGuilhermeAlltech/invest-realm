@@ -178,6 +178,15 @@ export function useInstallments() {
       .reduce((sum, i) => sum + Number(i.amount), 0);
   };
 
+  // Get next due installments for dashboard (with bill info)
+  const getNextDueInstallments = (limit: number = 5) => {
+    const today = getTodayBrazil();
+    return installments
+      .filter(i => i.due_date > today)
+      .sort((a, b) => a.due_date.localeCompare(b.due_date))
+      .slice(0, limit);
+  };
+
   return {
     installments,
     isLoading,
@@ -190,6 +199,7 @@ export function useInstallments() {
     getBillSummary,
     getMonthlyCommitment,
     getTotalPending,
+    getNextDueInstallments,
     generateInstallments: generateInstallmentsMutation.mutate,
     isGenerating: generateInstallmentsMutation.isPending,
   };
