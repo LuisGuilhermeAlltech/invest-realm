@@ -33,10 +33,7 @@ export default function ContasAPagar() {
   } = useContasAPagar();
 
   const {
-    getInstallmentsForBill,
     getBillSummary,
-    payInstallment,
-    isPaying,
     getMonthlyCommitment,
     getTotalPending,
   } = useInstallments();
@@ -236,10 +233,7 @@ export default function ContasAPagar() {
             setStatusFiltro={setStatusFiltro}
             tipoFiltro={tipoFiltro}
             setTipoFiltro={setTipoFiltro}
-            getInstallmentsForBill={getInstallmentsForBill}
             getBillSummary={getBillSummary}
-            onPayInstallment={payInstallment}
-            isPaying={isPaying}
           />
         </TabsContent>
 

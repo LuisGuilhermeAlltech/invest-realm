@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import {
   Table,
   TableBody,
@@ -17,12 +16,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Pencil, CheckCircle2, DollarSign, AlertCircle, Calendar } from 'lucide-react';
+import { Pencil, CheckCircle2, Calendar } from 'lucide-react';
 import { ContaAPagarComCalculos, TIPO_CONTA_LABELS, StatusContaAPagar, TipoContaAPagar } from '@/types/contasAPagar';
-import { Installment, InstallmentStatus, PaymentMethod, INSTALLMENT_STATUS_COLORS } from '@/types/installments';
+import { Installment } from '@/types/installments';
 import { formatCurrency } from '@/lib/formatters';
-import { format, parseISO, isBefore, startOfDay } from 'date-fns';
-import { RegistrarPagamentoParcelaModal } from './RegistrarPagamentoParcelaModal';
+import { format } from 'date-fns';
 
 interface ContasParceladasTableProps {
   contas: ContaAPagarComCalculos[];
@@ -33,8 +31,7 @@ interface ContasParceladasTableProps {
   setStatusFiltro: (value: StatusContaAPagar | 'todos') => void;
   tipoFiltro: TipoContaAPagar | 'todos';
   setTipoFiltro: (value: TipoContaAPagar | 'todos') => void;
-  // New installment props
-  getInstallmentsForBill: (contaPagarId: string) => Installment[];
+  // Installment props (simplified - no payment registration)
   getBillSummary: (contaPagarId: string) => {
     totalInstallments: number;
     paidCount: number;
@@ -45,14 +42,6 @@ interface ContasParceladasTableProps {
     totalPaid: number;
     formattedProgress: string;
   };
-  onPayInstallment: (data: {
-    installmentId: string;
-    paidAt: string;
-    paidAmount?: number;
-    paymentMethod?: PaymentMethod;
-    notes?: string;
-  }) => void;
-  isPaying: boolean;
 }
 
 export function ContasParceladasTable({
@@ -64,35 +53,8 @@ export function ContasParceladasTable({
   setStatusFiltro,
   tipoFiltro,
   setTipoFiltro,
-  getInstallmentsForBill,
   getBillSummary,
-  onPayInstallment,
-  isPaying,
 }: ContasParceladasTableProps) {
-  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
-  const [selectedInstallment, setSelectedInstallment] = useState<Installment | null>(null);
-  const [selectedBillDescription, setSelectedBillDescription] = useState<string>('');
-
-  const handleOpenPayment = (conta: ContaAPagarComCalculos) => {
-    const summary = getBillSummary(conta.id);
-    if (summary.nextPending) {
-      setSelectedInstallment(summary.nextPending);
-      setSelectedBillDescription(conta.descricao);
-      setPaymentModalOpen(true);
-    }
-  };
-
-  const calculateInstallmentStatus = (installment: Installment): InstallmentStatus => {
-    if (installment.status === 'paid') return 'paid';
-    
-    const today = startOfDay(new Date());
-    const dueDate = startOfDay(parseISO(installment.due_date));
-    
-    if (isBefore(dueDate, today)) {
-      return 'overdue';
-    }
-    return 'pending';
-  };
 
   const formatDueDate = (dateStr: string) => {
     const [year, month, day] = dateStr.split('-').map(Number);
@@ -164,19 +126,13 @@ export function ContasParceladasTable({
             <TableBody>
               {contas.map((conta) => {
                 const summary = getBillSummary(conta.id);
-                const hasOverdue = summary.overdueCount > 0;
                 const nextPending = summary.nextPending;
-                const nextStatus = nextPending ? calculateInstallmentStatus(nextPending) : null;
+                const isFullyPaid = summary.pendingCount === 0;
 
                 return (
                   <TableRow key={conta.id}>
                     <TableCell className="font-medium">
-                      <div className="flex items-center gap-2">
-                        {conta.descricao}
-                        {hasOverdue && (
-                          <AlertCircle className="h-4 w-4 text-destructive" />
-                        )}
-                      </div>
+                      {conta.descricao}
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline">
@@ -187,36 +143,29 @@ export function ContasParceladasTable({
                     <TableCell className="text-center">
                       {nextPending ? (
                         <div className="flex flex-col items-center">
-                          <span className={nextStatus === 'overdue' ? 'text-destructive font-medium' : ''}>
+                          <span className="flex items-center gap-1">
+                            <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
                             {formatDueDate(nextPending.due_date)}
                           </span>
-                          {nextStatus === 'overdue' && (
-                            <span className="text-xs text-destructive">Atrasada</span>
-                          )}
-                          {nextStatus === 'pending' && (
-                            <span className="text-xs text-muted-foreground">Baixa automática</span>
-                          )}
+                          <span className="text-xs text-muted-foreground">
+                            Automático
+                          </span>
                         </div>
                       ) : (
-                        <span className="text-green-600">Quitado</span>
+                        <span className="text-primary font-medium">Quitado</span>
                       )}
                     </TableCell>
                     <TableCell className="text-center">
-                      <span className={conta.status === 'quitado' || !nextPending ? 'text-green-600 font-medium' : ''}>
+                      <span className={isFullyPaid ? 'text-primary font-medium' : ''}>
                         {summary.formattedProgress}
                       </span>
-                      {summary.paidCount > 0 && summary.pendingCount > 0 && (
-                        <div className="text-xs text-muted-foreground">
-                          {summary.paidCount} pagas
-                        </div>
-                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       {formatCurrency(conta.valor_parcela || 0, 'BRL')}
                     </TableCell>
                     <TableCell className="text-right font-medium">
-                      {conta.status === 'quitado' || summary.pendingCount === 0 ? (
-                        <span className="text-green-600">Quitado</span>
+                      {isFullyPaid ? (
+                        <span className="text-primary">Quitado</span>
                       ) : (
                         <span className="text-destructive">
                           {formatCurrency(summary.totalRemaining, 'BRL')}
@@ -225,19 +174,6 @@ export function ContasParceladasTable({
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center justify-center gap-1">
-                        {/* Show manual payment only for overdue installments */}
-                        {conta.status === 'ativo' && nextPending && nextStatus === 'overdue' && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleOpenPayment(conta)}
-                            title="Registrar Pagamento Manual"
-                            className="text-green-600 hover:text-green-700"
-                          >
-                            <DollarSign className="h-4 w-4" />
-                          </Button>
-                        )}
-                        
                         <Button
                           variant="ghost"
                           size="icon"
@@ -258,7 +194,7 @@ export function ContasParceladasTable({
                             }}
                             title="Quitar"
                             disabled={isQuiting}
-                            className="text-green-600 hover:text-green-700"
+                            className="text-primary hover:text-primary/80"
                           >
                             <CheckCircle2 className="h-4 w-4" />
                           </Button>
@@ -272,16 +208,6 @@ export function ContasParceladasTable({
           </Table>
         </div>
       )}
-
-      {/* Payment Modal */}
-      <RegistrarPagamentoParcelaModal
-        open={paymentModalOpen}
-        onOpenChange={setPaymentModalOpen}
-        installment={selectedInstallment}
-        billDescription={selectedBillDescription}
-        onConfirm={onPayInstallment}
-        isLoading={isPaying}
-      />
     </div>
   );
 }
