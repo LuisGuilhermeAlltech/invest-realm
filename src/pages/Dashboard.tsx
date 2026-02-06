@@ -308,27 +308,77 @@ export default function Dashboard() {
           <CreditCard className="h-5 w-5 text-chart-2" />
           Contas – Visão do Mês
         </h2>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-          <Card className="border-primary/20 bg-primary/5">
+
+        {/* Indicadores principais: Saldo / Dívida / Exposição */}
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card className="border-border">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <div className="flex items-center gap-1">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Contas Totais</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground">Saldo em Contas</CardTitle>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Info className="h-3 w-3 text-muted-foreground" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="text-sm">Contas saldo (bancos/caixa) ativas</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <Landmark className="h-4 w-4 text-chart-2" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-xl font-bold font-mono">{formatCurrency(contasSaldo)}</div>
+              <p className="text-xs text-muted-foreground mt-1">Bancos + Caixa</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-negative/20 bg-negative/5">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <div className="flex items-center gap-1">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Dívida Total</CardTitle>
                 <Tooltip>
                   <TooltipTrigger>
                     <Info className="h-3 w-3 text-muted-foreground" />
                   </TooltipTrigger>
                   <TooltipContent className="max-w-xs">
-                    <p className="text-sm">Saldo: {formatCurrency(contasSaldo)} + Parceladas: {formatCurrency(parcelasEmAberto)} + Cartão: {formatCurrency(creditoVista)}</p>
+                    <p className="text-sm">Parceladas: {formatCurrency(parcelasEmAberto)} + Cartão: {formatCurrency(creditoVista)}</p>
                   </TooltipContent>
                 </Tooltip>
               </div>
-              <Wallet className="h-4 w-4 text-negative" />
+              <CreditCard className="h-4 w-4 text-negative" />
             </CardHeader>
             <CardContent>
-              <div className="text-xl font-bold font-mono text-negative">{formatCurrency(contasTotais)}</div>
-              <p className="text-xs text-muted-foreground mt-1">Saldo + Parceladas + Cartão</p>
+              <div className="text-xl font-bold font-mono text-negative">{formatCurrency(dividaTotalGlobal)}</div>
+              <p className="text-xs text-muted-foreground mt-1">Parceladas + Cartão à Vista</p>
             </CardContent>
           </Card>
+
+          <Card className={cn("border-border", (dividaTotalGlobal - contasSaldo) > 0 ? "bg-negative/5" : "bg-positive/5")}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <div className="flex items-center gap-1">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Exposição Líquida</CardTitle>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Info className="h-3 w-3 text-muted-foreground" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="text-sm">Dívida Total − Saldo em Contas</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <Wallet className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className={cn("text-xl font-bold font-mono", (dividaTotalGlobal - contasSaldo) > 0 ? "text-negative" : "text-positive")}>
+                {formatCurrency(dividaTotalGlobal - contasSaldo)}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Dívida − Saldo</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Compromissos do mês */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card className="border-border">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">A Pagar no Mês</CardTitle>

@@ -65,7 +65,7 @@ export default function PanoramaMensal() {
     isLoading,
   } = usePanoramaMensal();
 
-  const { contasTotais, contasSaldo, parcelasEmAberto, creditoVista, dividaTotal: dividaTotalGlobal, isLoading: contasLoading } = useContasTotais();
+  const { parcelasEmAberto, creditoVista, dividaTotal: dividaTotalGlobal, isLoading: contasLoading } = useContasTotais();
 
   if (isLoading || contasLoading) {
     return (
@@ -160,24 +160,24 @@ export default function PanoramaMensal() {
           </CardContent>
         </Card>
 
-        <Card className="border-border">
+        <Card className="border-negative/20 bg-negative/5">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <div className="flex items-center gap-1">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Contas Totais</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Dívida Total</CardTitle>
               <Tooltip>
                 <TooltipTrigger>
                   <Info className="h-3 w-3 text-muted-foreground" />
                 </TooltipTrigger>
                 <TooltipContent className="max-w-xs">
-                  <p className="text-sm">Saldo: {formatCurrency(contasSaldo)} + Parceladas: {formatCurrency(parcelasEmAberto)} + Cartão: {formatCurrency(creditoVista)}</p>
+                  <p className="text-sm">Parceladas: {formatCurrency(parcelasEmAberto)} + Cartão: {formatCurrency(creditoVista)}</p>
                 </TooltipContent>
               </Tooltip>
             </div>
-            <Wallet className="h-4 w-4 text-negative" />
+            <CreditCard className="h-4 w-4 text-negative" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold font-mono text-negative">{formatCurrency(contasTotais)}</div>
-            <p className="text-xs text-muted-foreground mt-1">Saldo + Parceladas + Cartão</p>
+            <div className="text-xl font-bold font-mono text-negative">{formatCurrency(dividaTotalGlobal)}</div>
+            <p className="text-xs text-muted-foreground mt-1">Parceladas + Cartão à Vista</p>
           </CardContent>
         </Card>
       </div>
