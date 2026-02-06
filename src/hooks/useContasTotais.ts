@@ -1,30 +1,17 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-
-// Helper to get today's date in Brazil timezone (YYYY-MM-DD)
-const getTodayBrazil = (): string => {
-  const now = new Date();
-  const formatter = new Intl.DateTimeFormat('sv-SE', {
-    timeZone: 'America/Sao_Paulo',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
-  return formatter.format(now);
-};
+import { useInstallments } from '@/hooks/useInstallments';
 
 /**
- * Hook centralizado para o conceito "Contas Totais".
+ * Hook centralizado para métricas de contas.
  *
- * CONTAS TOTAIS = Contas Saldo (contas_a_pagar modo=saldo ativas)
- *               + Parceladas em aberto (installments com due_date > hoje)
- *               + Crédito à Vista (card_purchases ainda não incluídas na fatura)
+ * FONTE ÚNICA para "Saldo Parcelado":
+ *   → useInstallments().getTotalPending()
+ *   → Mesmo cálculo usado pelo card "Total Parcelado" em Contas a Pagar
  *
- * DÍVIDA TOTAL = Parceladas em aberto + Crédito à Vista (sem contas saldo)
- *
- * IMPORTANTE: "Parceladas em aberto" usa due_date > hoje (somente futuras),
- * mesma lógica do card "Total Parcelado" e de getTotalPending() em useInstallments.
+ * DÍVIDA TOTAL = Saldo Parcelado Oficial + Crédito à Vista
+ * CONTAS TOTAIS = Contas Saldo + Dívida Total
  */
 export interface ContasTotaisData {
   contasSaldo: number;
@@ -37,12 +24,11 @@ export interface ContasTotaisData {
 
 export function useContasTotais(): ContasTotaisData {
   const { user } = useAuth();
+  const { getTotalPending, isLoading: installmentsLoading } = useInstallments();
 
   const query = useQuery({
-    queryKey: ['contas-totais', user?.id],
+    queryKey: ['contas-totais-saldo-cartao', user?.id],
     queryFn: async () => {
-      const today = getTodayBrazil();
-
       // 1. Contas Saldo (contas_a_pagar modo=saldo, status=ativo)
       const { data: saldoContas, error: saldoErr } = await supabase
         .from('contas_a_pagar')
@@ -57,21 +43,7 @@ export function useContasTotais(): ContasTotaisData {
         0
       );
 
-      // 2. Parceladas em aberto (installments com due_date > hoje)
-      // Usa due_date > today — mesma lógica do getTotalPending() em useInstallments
-      const { data: parcelas, error: parcErr } = await supabase
-        .from('installments')
-        .select('amount')
-        .eq('user_id', user!.id)
-        .gt('due_date', today);
-      if (parcErr) throw parcErr;
-
-      const parcelasEmAberto = (parcelas || []).reduce(
-        (sum, i) => sum + Number(i.amount),
-        0
-      );
-
-      // 3. Crédito à Vista (card_purchases sem included_in_statement_month)
+      // 2. Crédito à Vista (card_purchases sem included_in_statement_month)
       const { data: cartao, error: cartErr } = await supabase
         .from('card_purchases')
         .select('amount')
@@ -84,14 +56,16 @@ export function useContasTotais(): ContasTotaisData {
         0
       );
 
-      return { contasSaldo, parcelasEmAberto, creditoVista };
+      return { contasSaldo, creditoVista };
     },
     enabled: !!user,
   });
 
   const contasSaldo = query.data?.contasSaldo ?? 0;
-  const parcelasEmAberto = query.data?.parcelasEmAberto ?? 0;
   const creditoVista = query.data?.creditoVista ?? 0;
+
+  // FONTE ÚNICA: exatamente o mesmo cálculo do card "Total Parcelado"
+  const parcelasEmAberto = getTotalPending();
 
   return {
     contasSaldo,
@@ -99,6 +73,6 @@ export function useContasTotais(): ContasTotaisData {
     creditoVista,
     contasTotais: contasSaldo + parcelasEmAberto + creditoVista,
     dividaTotal: parcelasEmAberto + creditoVista,
-    isLoading: query.isLoading,
+    isLoading: query.isLoading || installmentsLoading,
   };
 }
