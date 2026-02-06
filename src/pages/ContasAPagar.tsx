@@ -10,6 +10,7 @@ import { ContasAPagarResumo } from '@/components/contasAPagar/ContasAPagarResumo
 import { ContasParceladasTable } from '@/components/contasAPagar/ContasParceladasTable';
 import { ContasSaldoSection } from '@/components/contasAPagar/ContasSaldoSection';
 import { CardPurchasesSection } from '@/components/contasAPagar/CardPurchasesSection';
+import { DebtPanoramaBlock } from '@/components/contasAPagar/DebtPanoramaBlock';
 import { ContaAPagarModal } from '@/components/contasAPagar/ContaAPagarModal';
 import { ContaSaldoDetalheDrawer } from '@/components/contasAPagar/ContaSaldoDetalheDrawer';
 import { ReceivableSaldoSection } from '@/components/contasReceber/ReceivableSaldoSection';
@@ -194,6 +195,9 @@ export default function ContasAPagar() {
 
   return (
     <div className="space-y-6">
+      {/* Panorama de Dívidas (Global) */}
+      <DebtPanoramaBlock />
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>

@@ -17,7 +17,6 @@ import FinanceiroMensal from "@/pages/FinanceiroMensal";
 import ContasAPagar from "@/pages/ContasAPagar";
 import AgenteAporte from "@/pages/AgenteAporte";
 import EvolucaoPatrimonial from "@/pages/EvolucaoPatrimonial";
-import PanoramaMensal from "@/pages/PanoramaMensal";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -46,7 +45,6 @@ function AppRoutes() {
       <Route path="/contas-a-pagar" element={<ProtectedRoute><ContasAPagar /></ProtectedRoute>} />
       <Route path="/agente-aporte" element={<ProtectedRoute><AgenteAporte /></ProtectedRoute>} />
       <Route path="/evolucao" element={<ProtectedRoute><EvolucaoPatrimonial /></ProtectedRoute>} />
-      <Route path="/panorama" element={<ProtectedRoute><PanoramaMensal /></ProtectedRoute>} />
       <Route path="/cadastros" element={<ProtectedRoute><Cadastros /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>

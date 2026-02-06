@@ -1,9 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { DollarSign, Calendar, Target, TrendingUp, TrendingDown, Minus, CreditCard, Wallet, Info } from 'lucide-react';
+import { DollarSign, Calendar, Target, TrendingUp, TrendingDown, Minus, CreditCard, Wallet } from 'lucide-react';
 import { formatCurrency } from '@/lib/formatters';
 import { Progress } from '@/components/ui/progress';
-import { useContasTotais } from '@/hooks/useContasTotais';
 
 interface ResumoData {
   totalEmAberto: number;
@@ -27,8 +25,6 @@ interface ContasAPagarResumoProps {
 }
 
 export function ContasAPagarResumo({ resumo, activeTab }: ContasAPagarResumoProps) {
-  const { contasTotais, contasSaldo, parcelasEmAberto, creditoVista, dividaTotal } = useContasTotais();
-
   const renderVariacaoIcon = (variacao: number) => {
     if (variacao > 0) {
       return <TrendingUp className="h-4 w-4 text-destructive" />;
@@ -113,7 +109,7 @@ export function ContasAPagarResumo({ resumo, activeTab }: ContasAPagarResumoProp
 
   if (activeTab === 'cartao') {
     return (
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Gasto no Mês</CardTitle>
@@ -125,31 +121,6 @@ export function ContasAPagarResumo({ resumo, activeTab }: ContasAPagarResumoProp
             </div>
             <p className="text-xs text-muted-foreground">
               Compras à vista no cartão
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <div className="flex items-center gap-1">
-              <CardTitle className="text-sm font-medium">Dívida Total</CardTitle>
-              <Tooltip>
-                <TooltipTrigger>
-                  <Info className="h-3 w-3 text-muted-foreground" />
-                </TooltipTrigger>
-                <TooltipContent className="max-w-xs">
-                  <p className="text-sm">Parceladas: {formatCurrency(parcelasEmAberto)} + Cartão: {formatCurrency(creditoVista)}</p>
-                </TooltipContent>
-              </Tooltip>
-            </div>
-            <CreditCard className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-destructive">
-              {formatCurrency(dividaTotal, 'BRL')}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Parceladas + Cartão à Vista
             </p>
           </CardContent>
         </Card>
@@ -189,7 +160,7 @@ export function ContasAPagarResumo({ resumo, activeTab }: ContasAPagarResumoProp
 
   // Tab Parceladas
   return (
-    <div className="grid gap-4 md:grid-cols-4">
+    <div className="grid gap-4 md:grid-cols-3">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Total Parcelado</CardTitle>
@@ -219,31 +190,6 @@ export function ContasAPagarResumo({ resumo, activeTab }: ContasAPagarResumoProp
           </p>
         </CardContent>
       </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <div className="flex items-center gap-1">
-              <CardTitle className="text-sm font-medium">Exposição Bruta</CardTitle>
-              <Tooltip>
-                <TooltipTrigger>
-                  <Info className="h-3 w-3 text-muted-foreground" />
-                </TooltipTrigger>
-                <TooltipContent className="max-w-xs">
-                  <p className="text-sm">Soma de todos os passivos: Saldo ({formatCurrency(contasSaldo)}) + Parceladas ({formatCurrency(parcelasEmAberto)}) + Cartão ({formatCurrency(creditoVista)})</p>
-                </TooltipContent>
-              </Tooltip>
-            </div>
-            <Wallet className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-destructive">
-              {formatCurrency(contasTotais, 'BRL')}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Saldo + Dívidas
-            </p>
-          </CardContent>
-        </Card>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
