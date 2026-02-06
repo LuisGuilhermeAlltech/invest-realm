@@ -12,7 +12,7 @@ import {
   PiggyBank,
   BarChart3,
   ExternalLink,
-  Wallet,
+  CreditCard,
   Info,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -51,7 +51,7 @@ export function PanoramaResumoBlock() {
     isLoading,
   } = usePanoramaMensal();
 
-  const { contasTotais, contasSaldo, parcelasEmAberto, creditoVista, isLoading: contasLoading } = useContasTotais();
+  const { parcelasEmAberto, creditoVista, dividaTotal, isLoading: contasLoading } = useContasTotais();
 
   if (isLoading || contasLoading) {
     return (
@@ -165,20 +165,20 @@ export function PanoramaResumoBlock() {
         <Card className="border-border">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
             <div className="flex items-center gap-1">
-              <CardTitle className="text-xs font-medium text-muted-foreground">Contas Totais</CardTitle>
+              <CardTitle className="text-xs font-medium text-muted-foreground">Dívida Total</CardTitle>
               <Tooltip>
                 <TooltipTrigger>
                   <Info className="h-2.5 w-2.5 text-muted-foreground" />
                 </TooltipTrigger>
                 <TooltipContent className="max-w-xs">
-                  <p className="text-xs">Saldo: {formatCurrency(contasSaldo)} + Parc: {formatCurrency(parcelasEmAberto)} + Cartão: {formatCurrency(creditoVista)}</p>
+                  <p className="text-xs">Parc: {formatCurrency(parcelasEmAberto)} + Cartão: {formatCurrency(creditoVista)}</p>
                 </TooltipContent>
               </Tooltip>
             </div>
-            <Wallet className="h-3 w-3 text-negative" />
+            <CreditCard className="h-3 w-3 text-negative" />
           </CardHeader>
           <CardContent className="px-3 pb-3">
-            <div className="text-base font-bold font-mono text-negative">{formatCurrency(contasTotais)}</div>
+            <div className="text-base font-bold font-mono text-negative">{formatCurrency(dividaTotal)}</div>
           </CardContent>
         </Card>
       </div>

@@ -27,7 +27,7 @@ interface ContasAPagarResumoProps {
 }
 
 export function ContasAPagarResumo({ resumo, activeTab }: ContasAPagarResumoProps) {
-  const { contasTotais, contasSaldo, parcelasEmAberto, creditoVista } = useContasTotais();
+  const { contasTotais, contasSaldo, parcelasEmAberto, creditoVista, dividaTotal } = useContasTotais();
 
   const renderVariacaoIcon = (variacao: number) => {
     if (variacao > 0) {
@@ -132,24 +132,24 @@ export function ContasAPagarResumo({ resumo, activeTab }: ContasAPagarResumoProp
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <div className="flex items-center gap-1">
-              <CardTitle className="text-sm font-medium">Contas Totais</CardTitle>
+              <CardTitle className="text-sm font-medium">Dívida Total</CardTitle>
               <Tooltip>
                 <TooltipTrigger>
                   <Info className="h-3 w-3 text-muted-foreground" />
                 </TooltipTrigger>
                 <TooltipContent className="max-w-xs">
-                  <p className="text-sm">Saldo: {formatCurrency(contasSaldo)} + Parceladas: {formatCurrency(parcelasEmAberto)} + Cartão: {formatCurrency(creditoVista)}</p>
+                  <p className="text-sm">Parceladas: {formatCurrency(parcelasEmAberto)} + Cartão: {formatCurrency(creditoVista)}</p>
                 </TooltipContent>
               </Tooltip>
             </div>
-            <Wallet className="h-4 w-4 text-muted-foreground" />
+            <CreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-destructive">
-              {formatCurrency(contasTotais, 'BRL')}
+              {formatCurrency(dividaTotal, 'BRL')}
             </div>
             <p className="text-xs text-muted-foreground">
-              Saldo + Parceladas + Cartão
+              Parceladas + Cartão à Vista
             </p>
           </CardContent>
         </Card>
@@ -223,13 +223,13 @@ export function ContasAPagarResumo({ resumo, activeTab }: ContasAPagarResumoProp
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <div className="flex items-center gap-1">
-              <CardTitle className="text-sm font-medium">Contas Totais</CardTitle>
+              <CardTitle className="text-sm font-medium">Exposição Bruta</CardTitle>
               <Tooltip>
                 <TooltipTrigger>
                   <Info className="h-3 w-3 text-muted-foreground" />
                 </TooltipTrigger>
                 <TooltipContent className="max-w-xs">
-                  <p className="text-sm">Saldo: {formatCurrency(contasSaldo)} + Parceladas: {formatCurrency(parcelasEmAberto)} + Cartão: {formatCurrency(creditoVista)}</p>
+                  <p className="text-sm">Soma de todos os passivos: Saldo ({formatCurrency(contasSaldo)}) + Parceladas ({formatCurrency(parcelasEmAberto)}) + Cartão ({formatCurrency(creditoVista)})</p>
                 </TooltipContent>
               </Tooltip>
             </div>
@@ -240,7 +240,7 @@ export function ContasAPagarResumo({ resumo, activeTab }: ContasAPagarResumoProp
               {formatCurrency(contasTotais, 'BRL')}
             </div>
             <p className="text-xs text-muted-foreground">
-              Saldo + Parceladas + Cartão
+              Saldo + Dívidas
             </p>
           </CardContent>
         </Card>
