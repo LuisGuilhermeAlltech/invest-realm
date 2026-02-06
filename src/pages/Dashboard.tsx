@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useDashboard } from '@/hooks/useDashboard';
 import { useCapitalLiquido } from '@/hooks/useCapitalLiquido';
 import { useDashboardConsolidado } from '@/hooks/useDashboardConsolidado';
+import { useContasTotais } from '@/hooks/useContasTotais';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -55,6 +56,7 @@ export default function Dashboard() {
   } = useDashboard();
 
   const { capitalDoBolsoBrl, isLoading: cliLoading } = useCapitalLiquido();
+  const { contasTotais, contasSaldo, parcelasEmAberto, creditoVista, dividaTotal: dividaTotalGlobal, isLoading: contasTotaisLoading } = useContasTotais();
 
   const {
     financeiroReceitas,
@@ -88,7 +90,7 @@ export default function Dashboard() {
   // Generate years for filter (current year - 5 to current year + 1)
   const years = Array.from({ length: 7 }, (_, i) => currentDate.getFullYear() - 5 + i);
 
-  if (isLoading || cliLoading) {
+  if (isLoading || cliLoading || contasTotaisLoading) {
     return <div className="flex items-center justify-center h-64"><div className="text-muted-foreground">Carregando...</div></div>;
   }
 
@@ -306,7 +308,27 @@ export default function Dashboard() {
           <CreditCard className="h-5 w-5 text-chart-2" />
           Contas – Visão do Mês
         </h2>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+          <Card className="border-primary/20 bg-primary/5">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <div className="flex items-center gap-1">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Contas Totais</CardTitle>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Info className="h-3 w-3 text-muted-foreground" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p className="text-sm">Saldo: {formatCurrency(contasSaldo)} + Parceladas: {formatCurrency(parcelasEmAberto)} + Cartão: {formatCurrency(creditoVista)}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <Wallet className="h-4 w-4 text-negative" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-xl font-bold font-mono text-negative">{formatCurrency(contasTotais)}</div>
+              <p className="text-xs text-muted-foreground mt-1">Saldo + Parceladas + Cartão</p>
+            </CardContent>
+          </Card>
           <Card className="border-border">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">A Pagar no Mês</CardTitle>

@@ -1,8 +1,10 @@
 import { usePanoramaMensal, PanoramaInsight } from '@/hooks/usePanoramaMensal';
+import { useContasTotais } from '@/hooks/useContasTotais';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { formatCurrency, formatPercent } from '@/lib/formatters';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { formatCurrency } from '@/lib/formatters';
 import {
   ArrowUpCircle,
   ArrowDownCircle,
@@ -15,6 +17,7 @@ import {
   CheckCircle,
   Info,
   CreditCard,
+  Wallet,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -55,15 +58,16 @@ export default function PanoramaMensal() {
   const {
     months,
     lastMonth,
-    prevMonth,
     varDespesas,
     varReceitas,
-    dividaTotal,
+    varDivida,
     insights,
     isLoading,
   } = usePanoramaMensal();
 
-  if (isLoading) {
+  const { contasTotais, contasSaldo, parcelasEmAberto, creditoVista, dividaTotal: dividaTotalGlobal, isLoading: contasLoading } = useContasTotais();
+
+  if (isLoading || contasLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-muted-foreground">Carregando...</div>
@@ -85,6 +89,12 @@ export default function PanoramaMensal() {
     const sign = v > 0 ? '+' : '';
     return `${sign}${(v * 100).toFixed(1)}%`;
   };
+
+  // Find peak debt
+  const monthsWithDebt = months.filter(m => m.dividaTotal > 0);
+  const peakDebt = monthsWithDebt.length > 0
+    ? monthsWithDebt.reduce((max, m) => m.dividaTotal > max.dividaTotal ? m : max, monthsWithDebt[0])
+    : null;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -152,22 +162,80 @@ export default function PanoramaMensal() {
 
         <Card className="border-border">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Dívida Total</CardTitle>
-            <CreditCard className="h-4 w-4 text-negative" />
+            <div className="flex items-center gap-1">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Contas Totais</CardTitle>
+              <Tooltip>
+                <TooltipTrigger>
+                  <Info className="h-3 w-3 text-muted-foreground" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p className="text-sm">Saldo: {formatCurrency(contasSaldo)} + Parceladas: {formatCurrency(parcelasEmAberto)} + Cartão: {formatCurrency(creditoVista)}</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
+            <Wallet className="h-4 w-4 text-negative" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold font-mono text-negative">{formatCurrency(dividaTotal)}</div>
-            <p className="text-xs text-muted-foreground mt-1">Saldo em aberto</p>
+            <div className="text-xl font-bold font-mono text-negative">{formatCurrency(contasTotais)}</div>
+            <p className="text-xs text-muted-foreground mt-1">Saldo + Parceladas + Cartão</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Chart */}
+      {/* Debt Section */}
+      <div className="space-y-3">
+        <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+          <CreditCard className="h-5 w-5 text-negative" />
+          Dívidas (Parceladas + Cartão)
+        </h2>
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card className="border-border">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Dívida do Mês</CardTitle>
+              <CreditCard className="h-4 w-4 text-negative" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-xl font-bold font-mono text-negative">{formatCurrency(lastMonth.dividaTotal)}</div>
+              {varDivida !== null && (
+                <p className={cn("text-xs mt-1 font-medium", varDivida <= 0 ? "text-positive" : "text-negative")}>
+                  {formatVar(varDivida)} vs mês anterior
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="border-border">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Dívida Global</CardTitle>
+              <Wallet className="h-4 w-4 text-negative" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-xl font-bold font-mono text-negative">{formatCurrency(dividaTotalGlobal)}</div>
+              <p className="text-xs text-muted-foreground mt-1">Parceladas + Cartão (total)</p>
+            </CardContent>
+          </Card>
+
+          {peakDebt && (
+            <Card className="border-border">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Pico de Dívida</CardTitle>
+                <TrendingUp className="h-4 w-4 text-amber-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl font-bold font-mono text-amber-600">{formatCurrency(peakDebt.dividaTotal)}</div>
+                <p className="text-xs text-muted-foreground mt-1">{peakDebt.label}</p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
+
+      {/* Main Chart */}
       <Card className="border-border">
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <BarChart3 className="h-5 w-5 text-primary" />
-            Receitas, Despesas e Investimentos por Mês
+            Receitas, Despesas, Investimentos e Dívidas por Mês
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -189,9 +257,9 @@ export default function PanoramaMensal() {
                 />
                 <RechartsTooltip content={<CustomTooltip />} />
                 <Legend />
-                <Bar dataKey="receitas" name="Receitas" fill="hsl(142, 71%, 45%)" radius={[2, 2, 0, 0]} barSize={20} />
-                <Bar dataKey="despesas" name="Despesas" fill="hsl(0, 72%, 51%)" radius={[2, 2, 0, 0]} barSize={20} />
-                <Bar dataKey="investimentos" name="Investimentos" fill="hsl(217, 91%, 40%)" radius={[2, 2, 0, 0]} barSize={20} />
+                <Bar dataKey="receitas" name="Receitas" fill="hsl(142, 71%, 45%)" radius={[2, 2, 0, 0]} barSize={18} />
+                <Bar dataKey="despesas" name="Despesas" fill="hsl(0, 72%, 51%)" radius={[2, 2, 0, 0]} barSize={18} />
+                <Bar dataKey="investimentos" name="Investimentos" fill="hsl(217, 91%, 40%)" radius={[2, 2, 0, 0]} barSize={18} />
                 <Line
                   type="monotone"
                   dataKey="resultado"
@@ -199,6 +267,15 @@ export default function PanoramaMensal() {
                   stroke="hsl(280, 65%, 60%)"
                   strokeWidth={2}
                   dot={{ r: 3 }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="dividaTotal"
+                  name="Dívida Total"
+                  stroke="hsl(25, 95%, 53%)"
+                  strokeWidth={2}
+                  strokeDasharray="5 5"
+                  dot={{ r: 3, fill: 'hsl(25, 95%, 53%)' }}
                 />
               </ComposedChart>
             </ResponsiveContainer>
@@ -243,6 +320,7 @@ export default function PanoramaMensal() {
                 <TableHead className="text-right">Despesas</TableHead>
                 <TableHead className="text-right">Resultado</TableHead>
                 <TableHead className="text-right">Investimentos</TableHead>
+                <TableHead className="text-right">Dívida</TableHead>
                 <TableHead className="text-right">Var. Despesas</TableHead>
                 <TableHead className="text-right">Var. Receitas</TableHead>
               </TableRow>
@@ -266,6 +344,9 @@ export default function PanoramaMensal() {
                       {formatCurrency(m.resultado)}
                     </TableCell>
                     <TableCell className="text-right font-mono">{formatCurrency(m.investimentos)}</TableCell>
+                    <TableCell className="text-right font-mono text-negative">
+                      {m.dividaTotal > 0 ? formatCurrency(m.dividaTotal) : '—'}
+                    </TableCell>
                     <TableCell className="text-right">
                       {vDespesas !== null ? (
                         <Badge variant={vDespesas <= 0 ? "default" : "destructive"} className="font-mono text-xs">
