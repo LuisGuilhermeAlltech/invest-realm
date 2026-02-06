@@ -1,6 +1,8 @@
 import { usePanoramaMensal } from '@/hooks/usePanoramaMensal';
+import { useContasTotais } from '@/hooks/useContasTotais';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { formatCurrency } from '@/lib/formatters';
 import {
   ArrowUpCircle,
@@ -10,6 +12,8 @@ import {
   PiggyBank,
   BarChart3,
   ExternalLink,
+  Wallet,
+  Info,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
@@ -47,7 +51,9 @@ export function PanoramaResumoBlock() {
     isLoading,
   } = usePanoramaMensal();
 
-  if (isLoading) {
+  const { contasTotais, contasSaldo, parcelasEmAberto, creditoVista, isLoading: contasLoading } = useContasTotais();
+
+  if (isLoading || contasLoading) {
     return (
       <Card className="border-border">
         <CardContent className="py-8">
@@ -99,7 +105,7 @@ export function PanoramaResumoBlock() {
       </div>
 
       {/* Mini cards - last month */}
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
         <Card className="border-border">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
             <CardTitle className="text-xs font-medium text-muted-foreground">Receitas</CardTitle>
@@ -155,6 +161,26 @@ export function PanoramaResumoBlock() {
             <div className="text-base font-bold font-mono">{formatCurrency(lastMonth.investimentos)}</div>
           </CardContent>
         </Card>
+
+        <Card className="border-border">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
+            <div className="flex items-center gap-1">
+              <CardTitle className="text-xs font-medium text-muted-foreground">Contas Totais</CardTitle>
+              <Tooltip>
+                <TooltipTrigger>
+                  <Info className="h-2.5 w-2.5 text-muted-foreground" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p className="text-xs">Saldo: {formatCurrency(contasSaldo)} + Parc: {formatCurrency(parcelasEmAberto)} + Cartão: {formatCurrency(creditoVista)}</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
+            <Wallet className="h-3 w-3 text-negative" />
+          </CardHeader>
+          <CardContent className="px-3 pb-3">
+            <div className="text-base font-bold font-mono text-negative">{formatCurrency(contasTotais)}</div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Mini chart */}
@@ -177,9 +203,9 @@ export function PanoramaResumoBlock() {
                     width={50}
                   />
                   <RechartsTooltip content={<MiniTooltip />} />
-                  <Bar dataKey="receitas" name="Receitas" fill="hsl(142, 71%, 45%)" radius={[2, 2, 0, 0]} barSize={14} />
-                  <Bar dataKey="despesas" name="Despesas" fill="hsl(0, 72%, 51%)" radius={[2, 2, 0, 0]} barSize={14} />
-                  <Bar dataKey="investimentos" name="Investimentos" fill="hsl(217, 91%, 40%)" radius={[2, 2, 0, 0]} barSize={14} />
+                  <Bar dataKey="receitas" name="Receitas" fill="hsl(142, 71%, 45%)" radius={[2, 2, 0, 0]} barSize={12} />
+                  <Bar dataKey="despesas" name="Despesas" fill="hsl(0, 72%, 51%)" radius={[2, 2, 0, 0]} barSize={12} />
+                  <Bar dataKey="investimentos" name="Investimentos" fill="hsl(217, 91%, 40%)" radius={[2, 2, 0, 0]} barSize={12} />
                   <Line
                     type="monotone"
                     dataKey="resultado"
@@ -187,6 +213,15 @@ export function PanoramaResumoBlock() {
                     stroke="hsl(280, 65%, 60%)"
                     strokeWidth={2}
                     dot={{ r: 2 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="dividaTotal"
+                    name="Dívida"
+                    stroke="hsl(25, 95%, 53%)"
+                    strokeWidth={1.5}
+                    strokeDasharray="4 4"
+                    dot={{ r: 2, fill: 'hsl(25, 95%, 53%)' }}
                   />
                 </ComposedChart>
               </ResponsiveContainer>

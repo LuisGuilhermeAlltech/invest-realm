@@ -11,6 +11,8 @@ export interface MonthData {
   despesas: number;
   resultado: number;
   investimentos: number;
+  dividaParcelada: number;
+  dividaCartao: number;
   dividaTotal: number;
 }
 
@@ -48,23 +50,21 @@ export function usePanoramaMensal() {
 
       if (movError) throw movError;
 
-      // 3. Fetch saldo accounts for debt tracking
-      const { data: dividas, error: divError } = await supabase
-        .from('contas_a_pagar')
-        .select('saldo_atual, modo, status')
-        .eq('user_id', user!.id)
-        .eq('status', 'ativo');
-
-      if (divError) throw divError;
-
-      // 4. Fetch pending installments total
-      const { data: installments, error: instError } = await supabase
+      // 3. Fetch all installments (for per-month debt tracking)
+      const { data: allInstallments, error: instError } = await supabase
         .from('installments')
-        .select('amount, status')
-        .eq('user_id', user!.id)
-        .neq('status', 'paid');
+        .select('amount, due_date, status')
+        .eq('user_id', user!.id);
 
       if (instError) throw instError;
+
+      // 4. Fetch all card purchases (for per-month debt tracking)
+      const { data: allCardPurchases, error: cardError } = await supabase
+        .from('card_purchases')
+        .select('amount, purchase_date, included_in_statement_month')
+        .eq('user_id', user!.id);
+
+      if (cardError) throw cardError;
 
       const convertBrl = (valor: number, moeda: string) =>
         moeda === 'USD' ? valor * usdBrl : valor;
@@ -79,13 +79,24 @@ export function usePanoramaMensal() {
         invMap.set(key, (invMap.get(key) || 0) + valorBrl);
       });
 
-      // Current total debt
-      const dividaSaldo = (dividas || [])
-        .filter(d => d.modo === 'saldo')
-        .reduce((sum, d) => sum + (d.saldo_atual || 0), 0);
-      const dividaParcelas = (installments || [])
-        .reduce((sum, i) => sum + Number(i.amount), 0);
-      const dividaTotal = dividaSaldo + dividaParcelas;
+      // Build per-month debt maps
+      // Parceladas: installments due in each month that are not paid
+      const parceladaMap = new Map<string, number>();
+      (allInstallments || []).forEach((inst) => {
+        if (inst.status === 'paid') return;
+        const [y, m] = inst.due_date.split('-');
+        const key = `${parseInt(y)}-${parseInt(m)}`;
+        parceladaMap.set(key, (parceladaMap.get(key) || 0) + Number(inst.amount));
+      });
+
+      // Card purchases: purchases per month (not yet included in statement)
+      const cartaoMap = new Map<string, number>();
+      (allCardPurchases || []).forEach((cp) => {
+        if (cp.included_in_statement_month) return; // already included = paid
+        const [y, m] = cp.purchase_date.split('-');
+        const key = `${parseInt(y)}-${parseInt(m)}`;
+        cartaoMap.set(key, (cartaoMap.get(key) || 0) + Number(cp.amount));
+      });
 
       // Build monthly data
       const months: MonthData[] = (financeiro || []).map((f) => {
@@ -93,6 +104,8 @@ export function usePanoramaMensal() {
         const receitas = f.total_receitas || 0;
         const despesas = f.total_gastos || 0;
         const investimentos = invMap.get(key) || 0;
+        const dividaParcelada = parceladaMap.get(key) || 0;
+        const dividaCartao = cartaoMap.get(key) || 0;
         return {
           ano: f.ano!,
           mes: f.mes!,
@@ -101,17 +114,18 @@ export function usePanoramaMensal() {
           despesas,
           resultado: receitas - despesas,
           investimentos,
-          dividaTotal, // same for all months (current snapshot)
+          dividaParcelada,
+          dividaCartao,
+          dividaTotal: dividaParcelada + dividaCartao,
         };
       });
 
-      return { months, dividaTotal };
+      return { months };
     },
     enabled: !!user && !exchangeLoading,
   });
 
   const months = query.data?.months ?? [];
-  const dividaTotal = query.data?.dividaTotal ?? 0;
 
   // Last month data
   const lastMonth = months.length > 0 ? months[months.length - 1] : null;
@@ -124,10 +138,14 @@ export function usePanoramaMensal() {
   const varReceitas = prevMonth && prevMonth.receitas > 0
     ? (lastMonth!.receitas - prevMonth.receitas) / prevMonth.receitas
     : null;
+  const varDivida = prevMonth && prevMonth.dividaTotal > 0
+    ? (lastMonth!.dividaTotal - prevMonth.dividaTotal) / prevMonth.dividaTotal
+    : null;
 
   // Insights
   const insights: PanoramaInsight[] = [];
 
+  // --- Expense insights ---
   if (varDespesas !== null && lastMonth && prevMonth) {
     if (varDespesas > 0) {
       insights.push({
@@ -142,6 +160,7 @@ export function usePanoramaMensal() {
     }
   }
 
+  // --- Revenue insights ---
   if (varReceitas !== null && lastMonth && prevMonth) {
     if (varReceitas > 0) {
       insights.push({
@@ -156,7 +175,7 @@ export function usePanoramaMensal() {
     }
   }
 
-  // Check consecutive expense growth
+  // --- Consecutive expense growth ---
   if (months.length >= 3) {
     const last3 = months.slice(-3);
     if (last3[2].despesas > last3[1].despesas && last3[1].despesas > last3[0].despesas) {
@@ -167,7 +186,49 @@ export function usePanoramaMensal() {
     }
   }
 
-  // Averages
+  // --- Debt insights ---
+  if (varDivida !== null && lastMonth && prevMonth) {
+    if (varDivida > 0) {
+      insights.push({
+        type: 'warning',
+        text: `💳 Dívida aumentou ${(varDivida * 100).toFixed(1)}% em relação ao mês anterior.`,
+      });
+    } else if (varDivida < -0.01) {
+      insights.push({
+        type: 'success',
+        text: `💳 Dívida reduziu ${(Math.abs(varDivida) * 100).toFixed(1)}% em relação ao mês anterior.`,
+      });
+    } else {
+      insights.push({
+        type: 'info',
+        text: '💳 Dívida estável em relação ao mês anterior.',
+      });
+    }
+  }
+
+  // Consecutive debt growth (2+ months)
+  if (months.length >= 3) {
+    const last3 = months.slice(-3);
+    if (last3[2].dividaTotal > last3[1].dividaTotal && last3[1].dividaTotal > last3[0].dividaTotal) {
+      insights.push({
+        type: 'warning',
+        text: '⚠️ Dívida crescendo por 2 ou mais meses consecutivos. Atenção!',
+      });
+    }
+  }
+
+  // Debt falling trend
+  if (months.length >= 3) {
+    const last3 = months.slice(-3);
+    if (last3[2].dividaTotal < last3[1].dividaTotal && last3[1].dividaTotal < last3[0].dividaTotal) {
+      insights.push({
+        type: 'success',
+        text: '📉 Dívida em queda por 2 meses consecutivos. Excelente!',
+      });
+    }
+  }
+
+  // --- Averages ---
   if (months.length > 0) {
     const avgGastos = months.reduce((s, m) => s + m.despesas, 0) / months.length;
     const avgInv = months.reduce((s, m) => s + m.investimentos, 0) / months.length;
@@ -177,7 +238,7 @@ export function usePanoramaMensal() {
     });
   }
 
-  // Peaks
+  // --- Peaks ---
   if (months.length > 0) {
     const maxGasto = months.reduce((max, m) => m.despesas > max.despesas ? m : max, months[0]);
     const maxReceita = months.reduce((max, m) => m.receitas > max.receitas ? m : max, months[0]);
@@ -187,13 +248,23 @@ export function usePanoramaMensal() {
     });
   }
 
+  // Debt peak
+  const monthsWithDebt = months.filter(m => m.dividaTotal > 0);
+  if (monthsWithDebt.length > 0) {
+    const maxDivida = monthsWithDebt.reduce((max, m) => m.dividaTotal > max.dividaTotal ? m : max, monthsWithDebt[0]);
+    insights.push({
+      type: 'info',
+      text: `💳 Maior dívida no período: ${maxDivida.label} (R$ ${maxDivida.dividaTotal.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}).`,
+    });
+  }
+
   return {
     months,
     lastMonth,
     prevMonth,
     varDespesas,
     varReceitas,
-    dividaTotal,
+    varDivida,
     insights,
     isLoading: query.isLoading || exchangeLoading,
   };
