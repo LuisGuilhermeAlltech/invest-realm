@@ -15,6 +15,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { EvolucaoResumoBlock } from '@/components/dashboard/EvolucaoResumoBlock';
+import { PanoramaResumoBlock } from '@/components/dashboard/PanoramaResumoBlock';
 
 const MESES = [
   { value: 1, label: 'Janeiro' },
@@ -426,6 +428,12 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Evolução Patrimonial */}
+      <EvolucaoResumoBlock />
+
+      {/* Panorama Mensal */}
+      <PanoramaResumoBlock />
 
       {/* Rebalanceamento */}
       <Card className="border-border">
