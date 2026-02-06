@@ -44,7 +44,7 @@ export function EvolucaoResumoBlock() {
   if (!data) return null;
 
   const {
-    totalInvestidoAcumulado,
+    capitalDoBolso,
     patrimonioAtual,
     ganhoAbsoluto,
     ganhoPercentual,
@@ -77,11 +77,11 @@ export function EvolucaoResumoBlock() {
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
         <Card className="border-border">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
-            <CardTitle className="text-xs font-medium text-muted-foreground">Total Investido</CardTitle>
+            <CardTitle className="text-xs font-medium text-muted-foreground">Capital do Bolso</CardTitle>
             <Wallet className="h-3 w-3 text-chart-1" />
           </CardHeader>
           <CardContent className="px-3 pb-3">
-            <div className="text-base font-bold font-mono">{formatCurrency(totalInvestidoAcumulado)}</div>
+            <div className="text-base font-bold font-mono">{formatCurrency(capitalDoBolso)}</div>
           </CardContent>
         </Card>
 
@@ -162,7 +162,7 @@ export function EvolucaoResumoBlock() {
                 <Line
                   type="monotone"
                   dataKey="acumulado"
-                  name="Total Investido"
+                  name="Capital do Bolso"
                   stroke="hsl(217, 91%, 40%)"
                   strokeWidth={2}
                   dot={false}

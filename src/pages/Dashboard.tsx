@@ -54,7 +54,7 @@ export default function Dashboard() {
     isLoading 
   } = useDashboard();
 
-  const { cliTotalBrl, isLoading: cliLoading } = useCapitalLiquido();
+  const { capitalDoBolsoBrl, isLoading: cliLoading } = useCapitalLiquido();
 
   const {
     financeiroReceitas,
@@ -201,23 +201,23 @@ export default function Dashboard() {
           <Card className="border-border">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <div className="flex items-center gap-1">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Capital Líquido Investido</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground">Capital do Bolso</CardTitle>
                 <Tooltip>
                   <TooltipTrigger>
                     <Info className="h-3 w-3 text-muted-foreground" />
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p className="text-sm">Aportes − Proventos</p>
+                    <p className="text-sm">Somente dinheiro externo aportado. Proventos reinvestidos não contam como capital do bolso.</p>
                   </TooltipContent>
                 </Tooltip>
               </div>
               <Receipt className="h-4 w-4 text-chart-5" />
             </CardHeader>
             <CardContent>
-              <div className={cn("text-xl font-bold font-mono", cliTotalBrl < 0 && "text-positive")}>
-                {formatCurrency(cliTotalBrl)}
+              <div className="text-xl font-bold font-mono">
+                {formatCurrency(capitalDoBolsoBrl)}
               </div>
-              <p className="text-xs text-muted-foreground mt-1">O que saiu do bolso</p>
+              <p className="text-xs text-muted-foreground mt-1">Dinheiro externo investido</p>
             </CardContent>
           </Card>
         </div>

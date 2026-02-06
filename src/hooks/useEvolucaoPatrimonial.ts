@@ -12,7 +12,7 @@ export interface MonthlyInvested {
 }
 
 export interface EvolucaoData {
-  totalInvestidoAcumulado: number;
+  capitalDoBolso: number;
   patrimonioAtual: number;
   ganhoAbsoluto: number;
   ganhoPercentual: number; // fraction (0.065 = 6.5%)
@@ -43,12 +43,12 @@ export function useEvolucaoPatrimonial() {
   const query = useQuery({
     queryKey: ['evolucao-patrimonial', user?.id, usdBrl],
     queryFn: async (): Promise<EvolucaoData> => {
-      // 1. Fetch all movimentações (compra/aporte) from Jan/2024
+      // 1. Fetch all movimentações (compra/aporte/saque) from Jan/2024
       const { data: movs, error: movError } = await supabase
         .from('movimentacoes')
         .select('data, quantidade, preco_unitario, taxas, moeda, tipo')
         .eq('user_id', user!.id)
-        .in('tipo', ['compra', 'aporte'])
+        .in('tipo', ['compra', 'aporte', 'saque'])
         .gte('data', '2024-01-01')
         .order('data', { ascending: true });
 
@@ -82,7 +82,7 @@ export function useEvolucaoPatrimonial() {
       const convertBrl = (valor: number, moeda: string) =>
         moeda === 'USD' ? valor * usdBrl : valor;
 
-      // Build monthly accumulated invested
+      // Build monthly accumulated Capital do Bolso (aportes - saques, sem proventos)
       const allMonths = generateMonthRange();
       const monthlyMap = new Map<string, number>();
 
@@ -91,7 +91,9 @@ export function useEvolucaoPatrimonial() {
         const key = `${parseInt(y)}-${parseInt(m)}`;
         const valor = (mov.quantidade * mov.preco_unitario) + (mov.taxas || 0);
         const valorBrl = convertBrl(valor, mov.moeda);
-        monthlyMap.set(key, (monthlyMap.get(key) || 0) + valorBrl);
+        // Saques reduzem o capital do bolso
+        const sinal = mov.tipo === 'saque' ? -1 : 1;
+        monthlyMap.set(key, (monthlyMap.get(key) || 0) + valorBrl * sinal);
       });
 
       let acumulado = 0;
@@ -101,7 +103,7 @@ export function useEvolucaoPatrimonial() {
         return { label, year, month, acumulado };
       });
 
-      const totalInvestidoAcumulado = acumulado;
+      const capitalDoBolso = acumulado;
 
       // Patrimônio atual (same logic as Dashboard)
       const ativosComPosicao = (carteira || []).filter(row => {
@@ -126,16 +128,15 @@ export function useEvolucaoPatrimonial() {
         return sum + convertBrl(p.valor || 0, p.moeda);
       }, 0);
 
-      // Ganho = Patrimônio atual - Total investido + Proventos (reinvestidos, mas saíram do patrimônio como rendimento)
-      // Na verdade: Ganho = Patrimônio Atual - Total Investido Acumulado
-      // Proventos são informativo pois estão reinvestidos (já inclusos no patrimônio)
-      const ganhoAbsoluto = patrimonioAtual - totalInvestidoAcumulado;
-      const ganhoPercentual = totalInvestidoAcumulado > 0
-        ? ganhoAbsoluto / totalInvestidoAcumulado
+      // Ganho = Patrimônio Total − Capital do Bolso
+      // Proventos são informativos (já inclusos no patrimônio como valorização)
+      const ganhoAbsoluto = patrimonioAtual - capitalDoBolso;
+      const ganhoPercentual = capitalDoBolso > 0
+        ? ganhoAbsoluto / capitalDoBolso
         : 0;
 
       return {
-        totalInvestidoAcumulado,
+        capitalDoBolso,
         patrimonioAtual,
         ganhoAbsoluto,
         ganhoPercentual,
