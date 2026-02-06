@@ -475,8 +475,8 @@ export default function Carteira() {
                     </TableHead>
                     <TableHead className="text-right whitespace-nowrap">
                       <Tooltip>
-                        <TooltipTrigger className="cursor-help">CLI (BRL)</TooltipTrigger>
-                        <TooltipContent><p>Capital Líquido Investido = Aportes − Proventos</p></TooltipContent>
+                        <TooltipTrigger className="cursor-help">Capital (BRL)</TooltipTrigger>
+                        <TooltipContent><p>Capital do Bolso = Aportes − Saques (sem proventos)</p></TooltipContent>
                       </Tooltip>
                     </TableHead>
                     <TableHead className="text-right whitespace-nowrap">
@@ -565,8 +565,8 @@ export default function Carteira() {
                             </>
                           );
                         })()}
-                        <TableCell className={cn('text-right font-mono', cli && cli.cli_brl < 0 && 'text-positive')}>
-                          {cli ? formatCurrency(cli.cli_brl) : '—'}
+                        <TableCell className={cn('text-right font-mono', cli && cli.capital_brl < 0 && 'text-positive')}>
+                          {cli ? formatCurrency(cli.capital_brl) : '—'}
                         </TableCell>
                         <TableCell className="text-right font-mono text-muted-foreground">
                           {cli && cli.pct_recuperado !== null ? formatPercent(cli.pct_recuperado) : '—'}
