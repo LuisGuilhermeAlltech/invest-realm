@@ -17,6 +17,8 @@ import {
   Wallet,
   Calculator,
   CreditCard,
+  LineChart,
+  BarChart3,
 } from 'lucide-react';
 
 interface AppLayoutProps {
@@ -32,6 +34,8 @@ const navItems = [
   { path: '/metas', label: 'Metas', icon: Target },
   { path: '/financeiro', label: 'Financeiro', icon: Calculator },
   { path: '/contas-a-pagar', label: 'Contas', icon: CreditCard },
+  { path: '/evolucao', label: 'Evolução', icon: LineChart },
+  { path: '/panorama', label: 'Panorama', icon: BarChart3 },
   { path: '/agente-aporte', label: 'Agente de Aporte', icon: TrendingUp },
   { path: '/cadastros', label: 'Cadastros', icon: Settings },
 ];
