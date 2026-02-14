@@ -1,25 +1,13 @@
 import { useState, useEffect } from 'react';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
+  Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useLimitesTipoGasto, ALL_TIPOS_CATEGORIA } from '@/hooks/useLimitesTipoGasto';
+import { useLimitesTipoGasto } from '@/hooks/useLimitesTipoGasto';
+import { useTiposGasto } from '@/hooks/useTiposGasto';
 import { formatCurrency } from '@/lib/formatters';
-import { Database } from '@/integrations/supabase/types';
-
-type TipoCategoria = Database['public']['Enums']['tipo_categoria_financeira'];
-
-const TIPOS_LABELS: Record<TipoCategoria, string> = {
-  essencial: 'Essencial',
-  nao_essencial: 'Não Essencial',
-  lazer: 'Lazer',
-  investimentos: 'Investimentos',
-};
 
 interface LimitesTipoModalProps {
   open: boolean;
@@ -29,50 +17,30 @@ interface LimitesTipoModalProps {
 }
 
 export default function LimitesTipoModal({ open, onClose, ano, mes }: LimitesTipoModalProps) {
-  const { limites, upsertLimite } = useLimitesTipoGasto(ano, mes);
-  const [values, setValues] = useState<Record<TipoCategoria, string>>({
-    essencial: '',
-    nao_essencial: '',
-    lazer: '',
-    investimentos: '',
-  });
+  const { limites, upsertLimite, getLimiteByTipoId } = useLimitesTipoGasto(ano, mes);
+  const { tiposAtivos } = useTiposGasto();
+  const [values, setValues] = useState<Record<string, string>>({});
   const [initialized, setInitialized] = useState(false);
 
-  // Get limite from limites array
-  const getLimiteFromArray = (tipo: TipoCategoria): number => {
-    return limites?.find(l => l.tipo === tipo)?.limite_mensal || 0;
-  };
-
-  // Initialize values when limites load (only once)
   useEffect(() => {
-    if (limites && !initialized) {
-      const newValues: Record<TipoCategoria, string> = {
-        essencial: '',
-        nao_essencial: '',
-        lazer: '',
-        investimentos: '',
-      };
-      
-      for (const tipo of ALL_TIPOS_CATEGORIA) {
-        const limite = limites.find(l => l.tipo === tipo)?.limite_mensal || 0;
-        newValues[tipo] = limite > 0 ? limite.toString() : '';
+    if (limites && tiposAtivos && !initialized) {
+      const newValues: Record<string, string> = {};
+      for (const tipo of tiposAtivos) {
+        const limite = getLimiteByTipoId(tipo.id);
+        newValues[tipo.id] = limite > 0 ? limite.toString() : '';
       }
-      
       setValues(newValues);
       setInitialized(true);
     }
-  }, [limites, initialized]);
+  }, [limites, tiposAtivos, initialized, getLimiteByTipoId]);
 
-  // Reset initialized when modal opens/closes or month changes
   useEffect(() => {
-    if (!open) {
-      setInitialized(false);
-    }
+    if (!open) setInitialized(false);
   }, [open, ano, mes]);
 
-  const handleSave = (tipo: TipoCategoria) => {
-    const valor = parseFloat(values[tipo]) || 0;
-    upsertLimite({ tipo, limite_mensal: valor });
+  const handleSave = (tipoId: string) => {
+    const valor = parseFloat(values[tipoId]) || 0;
+    upsertLimite({ tipo_id: tipoId, limite_mensal: valor });
   };
 
   const getMesNome = (mes: number) => {
@@ -90,41 +58,39 @@ export default function LimitesTipoModal({ open, onClose, ano, mes }: LimitesTip
 
         <div className="space-y-4 pt-4">
           <p className="text-sm text-muted-foreground">
-            Defina limites mensais para cada tipo de gasto. Os limites são independentes dos limites por categoria.
+            Defina limites mensais para cada tipo de gasto.
           </p>
 
-          {ALL_TIPOS_CATEGORIA.map((tipo) => (
-            <div key={tipo} className="space-y-2">
-              <Label>{TIPOS_LABELS[tipo]}</Label>
+          {tiposAtivos.map((tipo) => (
+            <div key={tipo.id} className="space-y-2">
+              <Label>{tipo.nome}</Label>
               <div className="flex gap-2">
                 <Input
                   type="number"
                   placeholder="0,00"
-                  value={values[tipo]}
-                  onChange={(e) => setValues({ ...values, [tipo]: e.target.value })}
+                  value={values[tipo.id] || ''}
+                  onChange={(e) => setValues({ ...values, [tipo.id]: e.target.value })}
                   step="0.01"
                   className="flex-1"
                 />
-                <Button 
-                  variant="outline" 
-                  onClick={() => handleSave(tipo)}
-                  disabled={values[tipo] === '' || parseFloat(values[tipo]) === getLimiteFromArray(tipo)}
+                <Button
+                  variant="outline"
+                  onClick={() => handleSave(tipo.id)}
+                  disabled={!values[tipo.id] || parseFloat(values[tipo.id]) === getLimiteByTipoId(tipo.id)}
                 >
                   Salvar
                 </Button>
               </div>
-              {getLimiteFromArray(tipo) > 0 && (
+              {getLimiteByTipoId(tipo.id) > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  Limite atual: {formatCurrency(getLimiteFromArray(tipo), 'BRL')}
+                  Limite atual: {formatCurrency(getLimiteByTipoId(tipo.id), 'BRL')}
                 </p>
               )}
             </div>
           ))}
 
           <div className="pt-4 border-t">
-            <Button variant="outline" onClick={onClose} className="w-full">
-              Fechar
-            </Button>
+            <Button variant="outline" onClick={onClose} className="w-full">Fechar</Button>
           </div>
         </div>
       </DialogContent>

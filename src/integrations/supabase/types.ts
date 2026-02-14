@@ -268,6 +268,7 @@ export type Database = {
           id: string
           limite_mensal: number
           nome: string
+          parent_id: string | null
           tipo: Database["public"]["Enums"]["tipo_categoria_financeira"]
           tipo_id: string | null
           updated_at: string | null
@@ -279,6 +280,7 @@ export type Database = {
           id?: string
           limite_mensal?: number
           nome: string
+          parent_id?: string | null
           tipo: Database["public"]["Enums"]["tipo_categoria_financeira"]
           tipo_id?: string | null
           updated_at?: string | null
@@ -290,12 +292,27 @@ export type Database = {
           id?: string
           limite_mensal?: number
           nome?: string
+          parent_id?: string | null
           tipo?: Database["public"]["Enums"]["tipo_categoria_financeira"]
           tipo_id?: string | null
           updated_at?: string | null
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "categorias_financeiras_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "categorias_financeiras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "categorias_financeiras_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "vw_gastos_por_categoria"
+            referencedColumns: ["categoria_id"]
+          },
           {
             foreignKeyName: "categorias_financeiras_tipo_id_fkey"
             columns: ["tipo_id"]
@@ -548,6 +565,7 @@ export type Database = {
           descricao: string
           financeiro_mensal_id: string
           id: string
+          subcategoria_id: string | null
           updated_at: string | null
           user_id: string
           valor: number
@@ -558,6 +576,7 @@ export type Database = {
           descricao: string
           financeiro_mensal_id: string
           id?: string
+          subcategoria_id?: string | null
           updated_at?: string | null
           user_id: string
           valor?: number
@@ -568,6 +587,7 @@ export type Database = {
           descricao?: string
           financeiro_mensal_id?: string
           id?: string
+          subcategoria_id?: string | null
           updated_at?: string | null
           user_id?: string
           valor?: number
@@ -628,6 +648,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_gastos_por_tipo_resumo"
             referencedColumns: ["financeiro_mensal_id"]
+          },
+          {
+            foreignKeyName: "financeiro_gastos_subcategoria_id_fkey"
+            columns: ["subcategoria_id"]
+            isOneToOne: false
+            referencedRelation: "categorias_financeiras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financeiro_gastos_subcategoria_id_fkey"
+            columns: ["subcategoria_id"]
+            isOneToOne: false
+            referencedRelation: "vw_gastos_por_categoria"
+            referencedColumns: ["categoria_id"]
           },
         ]
       }
@@ -827,7 +861,8 @@ export type Database = {
           id: string
           limite_mensal: number
           mes: number
-          tipo: Database["public"]["Enums"]["tipo_categoria_financeira"]
+          tipo: Database["public"]["Enums"]["tipo_categoria_financeira"] | null
+          tipo_id: string | null
           updated_at: string | null
           user_id: string
         }
@@ -837,7 +872,8 @@ export type Database = {
           id?: string
           limite_mensal?: number
           mes: number
-          tipo: Database["public"]["Enums"]["tipo_categoria_financeira"]
+          tipo?: Database["public"]["Enums"]["tipo_categoria_financeira"] | null
+          tipo_id?: string | null
           updated_at?: string | null
           user_id: string
         }
@@ -847,11 +883,27 @@ export type Database = {
           id?: string
           limite_mensal?: number
           mes?: number
-          tipo?: Database["public"]["Enums"]["tipo_categoria_financeira"]
+          tipo?: Database["public"]["Enums"]["tipo_categoria_financeira"] | null
+          tipo_id?: string | null
           updated_at?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "limites_tipo_gasto_tipo_id_fkey"
+            columns: ["tipo_id"]
+            isOneToOne: false
+            referencedRelation: "tipos_gasto"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "limites_tipo_gasto_tipo_id_fkey"
+            columns: ["tipo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_gastos_por_tipo_resumo"
+            referencedColumns: ["tipo_id"]
+          },
+        ]
       }
       market_prices_daily: {
         Row: {

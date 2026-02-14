@@ -14,6 +14,9 @@ import Proventos from "@/pages/Proventos";
 import Metas from "@/pages/Metas";
 import Cadastros from "@/pages/Cadastros";
 import FinanceiroMensal from "@/pages/FinanceiroMensal";
+import FinanceiroMesDetalhe from "@/pages/FinanceiroMesDetalhe";
+import FinanceiroCategorias from "@/pages/FinanceiroCategorias";
+import FinanceiroCategoriaDetalhe from "@/pages/FinanceiroCategoriaDetalhe";
 import ContasAPagar from "@/pages/ContasAPagar";
 import AgenteAporte from "@/pages/AgenteAporte";
 import EvolucaoPatrimonial from "@/pages/EvolucaoPatrimonial";
@@ -42,6 +45,9 @@ function AppRoutes() {
       <Route path="/proventos" element={<ProtectedRoute><Proventos /></ProtectedRoute>} />
       <Route path="/metas" element={<ProtectedRoute><Metas /></ProtectedRoute>} />
       <Route path="/financeiro" element={<ProtectedRoute><FinanceiroMensal /></ProtectedRoute>} />
+      <Route path="/financeiro/mes/:id" element={<ProtectedRoute><FinanceiroMesDetalhe /></ProtectedRoute>} />
+      <Route path="/financeiro/categorias" element={<ProtectedRoute><FinanceiroCategorias /></ProtectedRoute>} />
+      <Route path="/financeiro/categorias/:id" element={<ProtectedRoute><FinanceiroCategoriaDetalhe /></ProtectedRoute>} />
       <Route path="/contas-a-pagar" element={<ProtectedRoute><ContasAPagar /></ProtectedRoute>} />
       <Route path="/agente-aporte" element={<ProtectedRoute><AgenteAporte /></ProtectedRoute>} />
       <Route path="/evolucao" element={<ProtectedRoute><EvolucaoPatrimonial /></ProtectedRoute>} />
