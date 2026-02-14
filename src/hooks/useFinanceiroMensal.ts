@@ -29,8 +29,8 @@ export interface Gasto {
   user_id: string;
   descricao: string;
   valor: number;
+  tipo_id: string | null;
   categoria_id: string | null;
-  subcategoria_id: string | null;
 }
 
 export function useFinanceiroMensal() {
@@ -155,6 +155,14 @@ export function useFinanceiroDetalhe(financeiroMensalId: string | null) {
     enabled: !!user && !!financeiroMensalId,
   });
 
+  const invalidateAll = () => {
+    queryClient.invalidateQueries({ queryKey: ['financeiro-gastos', financeiroMensalId] });
+    queryClient.invalidateQueries({ queryKey: ['financeiro-mensal'] });
+    queryClient.invalidateQueries({ queryKey: ['gastos-por-categoria', financeiroMensalId] });
+    queryClient.invalidateQueries({ queryKey: ['gastos-por-tipo', financeiroMensalId] });
+    queryClient.invalidateQueries({ queryKey: ['gastos-por-categoria-tipo'] });
+  };
+
   const addReceita = useMutation({
     mutationFn: async ({ descricao, valor }: { descricao: string; valor: number }) => {
       const { error } = await supabase
@@ -178,7 +186,7 @@ export function useFinanceiroDetalhe(financeiroMensalId: string | null) {
   });
 
   const addGasto = useMutation({
-    mutationFn: async ({ descricao, valor, categoria_id, subcategoria_id }: { descricao: string; valor: number; categoria_id: string; subcategoria_id?: string | null }) => {
+    mutationFn: async ({ descricao, valor, tipo_id, categoria_id }: { descricao: string; valor: number; tipo_id: string; categoria_id?: string | null }) => {
       const { error } = await supabase
         .from('financeiro_gastos')
         .insert({ 
@@ -186,17 +194,13 @@ export function useFinanceiroDetalhe(financeiroMensalId: string | null) {
           financeiro_mensal_id: financeiroMensalId!, 
           descricao, 
           valor,
-          categoria_id,
-          subcategoria_id: subcategoria_id || null,
+          tipo_id,
+          categoria_id: categoria_id || null,
         });
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['financeiro-gastos', financeiroMensalId] });
-      queryClient.invalidateQueries({ queryKey: ['financeiro-mensal'] });
-      queryClient.invalidateQueries({ queryKey: ['gastos-por-categoria', financeiroMensalId] });
-      queryClient.invalidateQueries({ queryKey: ['gastos-por-tipo', financeiroMensalId] });
-      queryClient.invalidateQueries({ queryKey: ['gastos-mes-categoria'] });
+      invalidateAll();
       toast({ title: 'Gasto adicionado!' });
     },
     onError: (error: Error) => {
@@ -222,19 +226,15 @@ export function useFinanceiroDetalhe(financeiroMensalId: string | null) {
   });
 
   const updateGasto = useMutation({
-    mutationFn: async ({ id, descricao, valor, categoria_id, subcategoria_id }: { id: string; descricao: string; valor: number; categoria_id: string; subcategoria_id?: string | null }) => {
+    mutationFn: async ({ id, descricao, valor, tipo_id, categoria_id }: { id: string; descricao: string; valor: number; tipo_id: string; categoria_id?: string | null }) => {
       const { error } = await supabase
         .from('financeiro_gastos')
-        .update({ descricao, valor, categoria_id, subcategoria_id: subcategoria_id || null })
+        .update({ descricao, valor, tipo_id, categoria_id: categoria_id || null })
         .eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['financeiro-gastos', financeiroMensalId] });
-      queryClient.invalidateQueries({ queryKey: ['financeiro-mensal'] });
-      queryClient.invalidateQueries({ queryKey: ['gastos-por-categoria', financeiroMensalId] });
-      queryClient.invalidateQueries({ queryKey: ['gastos-por-tipo', financeiroMensalId] });
-      queryClient.invalidateQueries({ queryKey: ['gastos-mes-categoria'] });
+      invalidateAll();
     },
     onError: (error: Error) => {
       toast({ title: 'Erro ao atualizar gasto', description: error.message, variant: 'destructive' });
@@ -268,11 +268,7 @@ export function useFinanceiroDetalhe(financeiroMensalId: string | null) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['financeiro-gastos', financeiroMensalId] });
-      queryClient.invalidateQueries({ queryKey: ['financeiro-mensal'] });
-      queryClient.invalidateQueries({ queryKey: ['gastos-por-categoria', financeiroMensalId] });
-      queryClient.invalidateQueries({ queryKey: ['gastos-por-tipo', financeiroMensalId] });
-      queryClient.invalidateQueries({ queryKey: ['gastos-mes-categoria'] });
+      invalidateAll();
       toast({ title: 'Gasto excluído!' });
     },
     onError: (error: Error) => {

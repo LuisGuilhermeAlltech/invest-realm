@@ -100,15 +100,13 @@ export default function FinanceiroDetalheModal({ mes, open, onClose, onConverter
     
     // Get the tipo_id from the selected category
     const selectedCategoria = categoriasAtivas.find(c => c.id === novoGasto.categoria_id);
-    if (selectedCategoria && selectedCategoria.tipo_id) {
-      // Find tipo info by matching tipo_id
-      const tipoInfo = gastosTipoComLimites.find(g => g.tipo_id === selectedCategoria.tipo_id);
-      
-      // Check if adding this gasto would exceed the limit
+    const tipoId = selectedCategoria?.tipo_id || '';
+    
+    if (tipoId) {
+      const tipoInfo = gastosTipoComLimites.find(g => g.tipo_id === tipoId);
       if (tipoInfo && tipoInfo.limite_mensal > 0) {
         const totalApos = tipoInfo.total_gasto + valor;
         const percentualApos = (totalApos / tipoInfo.limite_mensal) * 100;
-        
         if (percentualApos >= 90) {
           toast({
             title: percentualApos >= 100 ? '⚠️ Limite ultrapassado!' : '⚠️ Limite próximo',
@@ -122,6 +120,7 @@ export default function FinanceiroDetalheModal({ mes, open, onClose, onConverter
     addGasto({ 
       descricao: novoGasto.descricao, 
       valor, 
+      tipo_id: tipoId,
       categoria_id: novoGasto.categoria_id 
     });
     setNovoGasto({ descricao: '', valor: '', categoria_id: '' });
@@ -146,10 +145,12 @@ export default function FinanceiroDetalheModal({ mes, open, onClose, onConverter
 
   const saveEditGasto = () => {
     if (editingGasto && editValues.descricao && editValues.valor && editValues.categoria_id) {
+      const selectedCat = categoriasAtivas.find(c => c.id === editValues.categoria_id);
       updateGasto({ 
         id: editingGasto, 
         descricao: editValues.descricao, 
         valor: parseFloat(editValues.valor),
+        tipo_id: selectedCat?.tipo_id || '',
         categoria_id: editValues.categoria_id
       });
       setEditingGasto(null);
