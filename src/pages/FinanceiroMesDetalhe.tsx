@@ -3,11 +3,13 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Plus, Trash2, Check, X, TrendingUp, TrendingDown, Wallet, ArrowRight } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, TrendingUp, TrendingDown, Wallet, ArrowRight } from 'lucide-react';
 import { useFinanceiroMensal, useFinanceiroDetalhe } from '@/hooks/useFinanceiroMensal';
 import { useCategoriasFinanceiras, useGastosPorCategoria } from '@/hooks/useCategoriasFinanceiras';
 import { useTiposGasto } from '@/hooks/useTiposGasto';
@@ -32,13 +34,11 @@ export default function FinanceiroMesDetalhe() {
   const {
     receitas, gastos, isLoading,
     addReceita, addGasto,
-    updateReceita, updateGasto,
     deleteReceita, deleteGasto,
   } = useFinanceiroDetalhe(id || null);
 
-  const { categoriasRaizAtivas, getSubcategoriasAtivas } = useCategoriasFinanceiras();
-  const { tipos } = useTiposGasto();
-  const { data: gastosPorCategoria } = useGastosPorCategoria(id || null);
+  const { categoriasAtivas, getSubcategoriasByTipo, createCategoria } = useCategoriasFinanceiras();
+  const { tipos, tiposAtivos } = useTiposGasto();
   const { gastosTipoComLimites } = useGastosPorCategoriaComLimites(
     id || null,
     mes?.ano || new Date().getFullYear(),
@@ -46,10 +46,19 @@ export default function FinanceiroMesDetalhe() {
   );
 
   const [novaReceita, setNovaReceita] = useState({ descricao: '', valor: '' });
-  const [novoGasto, setNovoGasto] = useState({ descricao: '', valor: '', categoria_id: '', subcategoria_id: '' });
-  const [editingReceita, setEditingReceita] = useState<string | null>(null);
-  const [editingGasto, setEditingGasto] = useState<string | null>(null);
-  const [editValues, setEditValues] = useState({ descricao: '', valor: '', categoria_id: '', subcategoria_id: '' });
+  
+  // Gasto form state
+  const [showGastoForm, setShowGastoForm] = useState(false);
+  const [gastoFormTipoId, setGastoFormTipoId] = useState('');
+  const [gastoFormCategoriaId, setGastoFormCategoriaId] = useState('');
+  const [gastoFormDescricao, setGastoFormDescricao] = useState('');
+  const [gastoFormValor, setGastoFormValor] = useState('');
+
+  // New subcategoria form
+  const [showSubForm, setShowSubForm] = useState(false);
+  const [subFormTipoId, setSubFormTipoId] = useState('');
+  const [subFormNome, setSubFormNome] = useState('');
+  const [subFormLimite, setSubFormLimite] = useState('');
 
   if (!mes) {
     return (
@@ -66,24 +75,47 @@ export default function FinanceiroMesDetalhe() {
   const totalGastos = gastos?.reduce((sum, g) => sum + Number(g.valor), 0) || 0;
   const saldoMes = totalReceitas - totalGastos;
 
-  const subcategoriasForCategoria = novoGasto.categoria_id ? getSubcategoriasAtivas(novoGasto.categoria_id) : [];
-  const editSubcategorias = editValues.categoria_id ? getSubcategoriasAtivas(editValues.categoria_id) : [];
-
   const handleAddReceita = () => {
     if (!novaReceita.descricao || !novaReceita.valor) return;
     addReceita({ descricao: novaReceita.descricao, valor: parseFloat(novaReceita.valor) });
     setNovaReceita({ descricao: '', valor: '' });
   };
 
+  const openGastoForm = (tipoId?: string, categoriaId?: string) => {
+    setGastoFormTipoId(tipoId || '');
+    setGastoFormCategoriaId(categoriaId || '');
+    setGastoFormDescricao('');
+    setGastoFormValor('');
+    setShowGastoForm(true);
+  };
+
   const handleAddGasto = () => {
-    if (!novoGasto.descricao || !novoGasto.valor || !novoGasto.categoria_id) return;
+    if (!gastoFormDescricao || !gastoFormValor || !gastoFormTipoId) return;
     addGasto({
-      descricao: novoGasto.descricao,
-      valor: parseFloat(novoGasto.valor),
-      categoria_id: novoGasto.categoria_id,
-      subcategoria_id: novoGasto.subcategoria_id || null,
+      descricao: gastoFormDescricao,
+      valor: parseFloat(gastoFormValor),
+      tipo_id: gastoFormTipoId,
+      categoria_id: gastoFormCategoriaId || null,
     });
-    setNovoGasto({ descricao: '', valor: '', categoria_id: '', subcategoria_id: '' });
+    setShowGastoForm(false);
+  };
+
+  const openSubForm = (tipoId: string) => {
+    setSubFormTipoId(tipoId);
+    setSubFormNome('');
+    setSubFormLimite('');
+    setShowSubForm(true);
+  };
+
+  const handleAddSubcategoria = () => {
+    if (!subFormNome.trim() || !subFormTipoId) return;
+    createCategoria({
+      nome: subFormNome.trim(),
+      tipo_id: subFormTipoId,
+      limite_mensal: parseFloat(subFormLimite) || 0,
+      ativa: true,
+    });
+    setShowSubForm(false);
   };
 
   const handleConverterAporte = () => {
@@ -96,43 +128,78 @@ export default function FinanceiroMesDetalhe() {
     }
   };
 
-  // Group gastos by tipo > categoria
-  const gastosByTipoCategoria = () => {
-    if (!gastos || !tipos) return [];
-    
+  // Group gastos by Macro (tipo), then by subcategoria within each macro
+  const gastosByMacro = () => {
+    if (!gastos || !tiposAtivos) return [];
+
     const grouped: Record<string, {
-      tipoNome: string;
       tipoId: string;
-      categorias: Record<string, {
-        categoriaNome: string;
+      tipoNome: string;
+      gastosDiretos: typeof gastos; // categoria_id is null
+      subcategorias: Record<string, {
         categoriaId: string;
+        categoriaNome: string;
+        limiteMensal: number;
         gastos: typeof gastos;
       }>;
     }> = {};
 
-    for (const g of gastos) {
-      const cat = categoriasRaizAtivas.find(c => c.id === g.categoria_id);
-      if (!cat) continue;
-      const tipo = tipos.find(t => t.id === cat.tipo_id);
-      const tipoKey = tipo?.id || 'sem_tipo';
-      const tipoNome = tipo?.nome || 'Sem Tipo';
-
-      if (!grouped[tipoKey]) {
-        grouped[tipoKey] = { tipoNome, tipoId: tipoKey, categorias: {} };
-      }
-      if (!grouped[tipoKey].categorias[cat.id]) {
-        grouped[tipoKey].categorias[cat.id] = { categoriaNome: cat.nome, categoriaId: cat.id, gastos: [] };
-      }
-      grouped[tipoKey].categorias[cat.id].gastos.push(g);
+    // Initialize with all active tipos
+    for (const tipo of tiposAtivos) {
+      grouped[tipo.id] = {
+        tipoId: tipo.id,
+        tipoNome: tipo.nome,
+        gastosDiretos: [],
+        subcategorias: {},
+      };
     }
 
-    return Object.values(grouped);
+    for (const g of gastos) {
+      const tipoId = g.tipo_id;
+      if (!tipoId) continue;
+      
+      if (!grouped[tipoId]) {
+        const tipo = tipos?.find(t => t.id === tipoId);
+        grouped[tipoId] = {
+          tipoId,
+          tipoNome: tipo?.nome || 'Macro desconhecida',
+          gastosDiretos: [],
+          subcategorias: {},
+        };
+      }
+
+      if (!g.categoria_id) {
+        // Direct macro gasto
+        grouped[tipoId].gastosDiretos.push(g);
+      } else {
+        // Subcategoria gasto
+        if (!grouped[tipoId].subcategorias[g.categoria_id]) {
+          const cat = categoriasAtivas.find(c => c.id === g.categoria_id);
+          grouped[tipoId].subcategorias[g.categoria_id] = {
+            categoriaId: g.categoria_id,
+            categoriaNome: cat?.nome || 'Subcategoria',
+            limiteMensal: cat?.limite_mensal || 0,
+            gastos: [],
+          };
+        }
+        grouped[tipoId].subcategorias[g.categoria_id].gastos.push(g);
+      }
+    }
+
+    return Object.values(grouped).filter(g => 
+      g.gastosDiretos.length > 0 || Object.keys(g.subcategorias).length > 0
+    );
   };
 
-  const getCategoriaInfo = (categoriaId: string | null) => {
-    if (!categoriaId) return null;
-    return categoriasRaizAtivas.find(c => c.id === categoriaId);
+  const getTotalMacro = (macro: ReturnType<typeof gastosByMacro>[0]) => {
+    const diretos = macro.gastosDiretos.reduce((s, g) => s + Number(g.valor), 0);
+    const subs = Object.values(macro.subcategorias).reduce(
+      (s, sub) => s + sub.gastos.reduce((ss, g) => ss + Number(g.valor), 0), 0
+    );
+    return diretos + subs;
   };
+
+  const subcategoriasForGastoForm = gastoFormTipoId ? getSubcategoriasByTipo(gastoFormTipoId) : [];
 
   return (
     <div className="space-y-6">
@@ -236,48 +303,25 @@ export default function FinanceiroMesDetalhe() {
           </CardContent>
         </Card>
 
-        {/* Gastos - form */}
+        {/* Quick gasto button */}
         <Card>
           <CardHeader>
             <CardTitle className="text-lg text-red-600 flex items-center gap-2">
               <TrendingDown className="h-5 w-5" /> Novo Gasto
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex gap-2">
-              <Input placeholder="Descrição" value={novoGasto.descricao} onChange={(e) => setNovoGasto({ ...novoGasto, descricao: e.target.value })} className="flex-1" />
-              <Input type="number" placeholder="Valor" value={novoGasto.valor} onChange={(e) => setNovoGasto({ ...novoGasto, valor: e.target.value })} className="w-28" step="0.01" />
-            </div>
-            <div className="flex gap-2">
-              <Select value={novoGasto.categoria_id} onValueChange={(v) => setNovoGasto({ ...novoGasto, categoria_id: v, subcategoria_id: '' })}>
-                <SelectTrigger className="flex-1"><SelectValue placeholder="Categoria" /></SelectTrigger>
-                <SelectContent>
-                  {categoriasRaizAtivas.map((cat) => (
-                    <SelectItem key={cat.id} value={cat.id}>{cat.nome}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {subcategoriasForCategoria.length > 0 && (
-                <Select value={novoGasto.subcategoria_id} onValueChange={(v) => setNovoGasto({ ...novoGasto, subcategoria_id: v })}>
-                  <SelectTrigger className="flex-1"><SelectValue placeholder="Subcategoria (opcional)" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">Nenhuma</SelectItem>
-                    {subcategoriasForCategoria.map((sub) => (
-                      <SelectItem key={sub.id} value={sub.id}>{sub.nome}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-              <Button size="icon" onClick={handleAddGasto} disabled={!novoGasto.categoria_id}><Plus className="h-4 w-4" /></Button>
-            </div>
+          <CardContent>
+            <Button onClick={() => openGastoForm()} className="w-full">
+              <Plus className="h-4 w-4 mr-2" /> Adicionar Gasto
+            </Button>
           </CardContent>
         </Card>
       </div>
 
-      {/* Gastos organized by Tipo > Categoria */}
+      {/* Gastos organized by Macro */}
       <Card>
         <CardHeader>
-          <CardTitle>Gastos por Tipo &gt; Categoria</CardTitle>
+          <CardTitle>Gastos por Categoria Macro</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -286,61 +330,113 @@ export default function FinanceiroMesDetalhe() {
             <div className="text-center py-8 text-muted-foreground">Nenhum gasto cadastrado neste mês.</div>
           ) : (
             <Accordion type="multiple" className="w-full">
-              {gastosByTipoCategoria().map((tipoGroup) => (
-                <AccordionItem key={tipoGroup.tipoId} value={tipoGroup.tipoId}>
+              {gastosByMacro().map((macro) => (
+                <AccordionItem key={macro.tipoId} value={macro.tipoId}>
                   <AccordionTrigger className="text-base font-semibold">
-                    {tipoGroup.tipoNome}
-                    <Badge variant="secondary" className="ml-2">
-                      {formatCurrency(
-                        Object.values(tipoGroup.categorias).reduce((sum, cat) => sum + cat.gastos.reduce((s, g) => s + Number(g.valor), 0), 0),
-                        'BRL'
-                      )}
-                    </Badge>
+                    <span className="flex items-center gap-2">
+                      {macro.tipoNome}
+                      <Badge variant="secondary">
+                        {formatCurrency(getTotalMacro(macro), 'BRL')}
+                      </Badge>
+                    </span>
                   </AccordionTrigger>
-                  <AccordionContent>
-                    <Accordion type="multiple" className="w-full pl-4">
-                      {Object.values(tipoGroup.categorias).map((catGroup) => (
-                        <AccordionItem key={catGroup.categoriaId} value={catGroup.categoriaId}>
-                          <AccordionTrigger className="text-sm">
-                            <span className="flex items-center gap-2">
-                              {catGroup.categoriaNome}
-                              <Badge variant="outline" className="text-xs">
-                                {formatCurrency(catGroup.gastos.reduce((s, g) => s + Number(g.valor), 0), 'BRL')}
-                              </Badge>
-                            </span>
-                          </AccordionTrigger>
-                          <AccordionContent>
-                            <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead>Descrição</TableHead>
-                                  <TableHead>Subcategoria</TableHead>
-                                  <TableHead className="text-right w-28">Valor</TableHead>
-                                  <TableHead className="w-16"></TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {catGroup.gastos.map((g) => {
-                                  const subcat = g.subcategoria_id ? getSubcategoriasAtivas(catGroup.categoriaId).find(s => s.id === g.subcategoria_id) : null;
-                                  return (
-                                    <TableRow key={g.id}>
-                                      <TableCell>{g.descricao}</TableCell>
-                                      <TableCell className="text-muted-foreground text-sm">{subcat?.nome || '—'}</TableCell>
-                                      <TableCell className="text-right text-red-600">{formatCurrency(Number(g.valor), 'BRL')}</TableCell>
-                                      <TableCell>
-                                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => deleteGasto(g.id)}>
-                                          <Trash2 className="h-3 w-3 text-destructive" />
-                                        </Button>
-                                      </TableCell>
-                                    </TableRow>
-                                  );
-                                })}
-                              </TableBody>
-                            </Table>
-                          </AccordionContent>
-                        </AccordionItem>
-                      ))}
-                    </Accordion>
+                  <AccordionContent className="space-y-4 pl-2">
+                    {/* Action buttons */}
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={() => openGastoForm(macro.tipoId)}>
+                        <Plus className="h-3 w-3 mr-1" /> Gasto em {macro.tipoNome}
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => openSubForm(macro.tipoId)}>
+                        <Plus className="h-3 w-3 mr-1" /> Subcategoria
+                      </Button>
+                    </div>
+
+                    {/* Direct gastos (sem subcategoria) */}
+                    {macro.gastosDiretos.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-medium text-muted-foreground mb-2">Gastos diretos (sem subcategoria)</h4>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Descrição</TableHead>
+                              <TableHead className="text-right w-28">Valor</TableHead>
+                              <TableHead className="w-16"></TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {macro.gastosDiretos.map((g) => (
+                              <TableRow key={g.id}>
+                                <TableCell>{g.descricao}</TableCell>
+                                <TableCell className="text-right text-red-600">{formatCurrency(Number(g.valor), 'BRL')}</TableCell>
+                                <TableCell>
+                                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => deleteGasto(g.id)}>
+                                    <Trash2 className="h-3 w-3 text-destructive" />
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+
+                    {/* Subcategorias */}
+                    {Object.values(macro.subcategorias).length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-medium text-muted-foreground mb-2">Subcategorias</h4>
+                        <Accordion type="multiple" className="w-full">
+                          {Object.values(macro.subcategorias).map((sub) => {
+                            const totalSub = sub.gastos.reduce((s, g) => s + Number(g.valor), 0);
+                            return (
+                              <AccordionItem key={sub.categoriaId} value={sub.categoriaId}>
+                                <AccordionTrigger className="text-sm">
+                                  <span className="flex items-center gap-2">
+                                    {sub.categoriaNome}
+                                    <Badge variant="outline" className="text-xs">
+                                      {formatCurrency(totalSub, 'BRL')}
+                                    </Badge>
+                                    {sub.limiteMensal > 0 && (
+                                      <Badge variant="secondary" className="text-xs">
+                                        Limite: {formatCurrency(sub.limiteMensal, 'BRL')}
+                                      </Badge>
+                                    )}
+                                  </span>
+                                </AccordionTrigger>
+                                <AccordionContent>
+                                  <div className="mb-2">
+                                    <Button variant="ghost" size="sm" onClick={() => openGastoForm(macro.tipoId, sub.categoriaId)}>
+                                      <Plus className="h-3 w-3 mr-1" /> Gasto em {sub.categoriaNome}
+                                    </Button>
+                                  </div>
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow>
+                                        <TableHead>Descrição</TableHead>
+                                        <TableHead className="text-right w-28">Valor</TableHead>
+                                        <TableHead className="w-16"></TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {sub.gastos.map((g) => (
+                                        <TableRow key={g.id}>
+                                          <TableCell>{g.descricao}</TableCell>
+                                          <TableCell className="text-right text-red-600">{formatCurrency(Number(g.valor), 'BRL')}</TableCell>
+                                          <TableCell>
+                                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => deleteGasto(g.id)}>
+                                              <Trash2 className="h-3 w-3 text-destructive" />
+                                            </Button>
+                                          </TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </AccordionContent>
+                              </AccordionItem>
+                            );
+                          })}
+                        </Accordion>
+                      </div>
+                    )}
                   </AccordionContent>
                 </AccordionItem>
               ))}
@@ -348,6 +444,79 @@ export default function FinanceiroMesDetalhe() {
           )}
         </CardContent>
       </Card>
+
+      {/* Dialog: Novo gasto */}
+      <Dialog open={showGastoForm} onOpenChange={(o) => !o && setShowGastoForm(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Novo Gasto</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label>Categoria Macro *</Label>
+              <Select value={gastoFormTipoId} onValueChange={(v) => { setGastoFormTipoId(v); setGastoFormCategoriaId(''); }}>
+                <SelectTrigger><SelectValue placeholder="Selecione a macro" /></SelectTrigger>
+                <SelectContent>
+                  {tiposAtivos.map((tipo) => (
+                    <SelectItem key={tipo.id} value={tipo.id}>{tipo.nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {gastoFormTipoId && subcategoriasForGastoForm.length > 0 && (
+              <div className="space-y-2">
+                <Label>Subcategoria (opcional)</Label>
+                <Select value={gastoFormCategoriaId} onValueChange={setGastoFormCategoriaId}>
+                  <SelectTrigger><SelectValue placeholder="Nenhuma (gasto direto)" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Nenhuma (gasto direto)</SelectItem>
+                    {subcategoriasForGastoForm.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id}>{cat.nome}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>Descrição *</Label>
+              <Input value={gastoFormDescricao} onChange={(e) => setGastoFormDescricao(e.target.value)} placeholder="Descrição do gasto" />
+            </div>
+            <div className="space-y-2">
+              <Label>Valor (R$) *</Label>
+              <Input type="number" value={gastoFormValor} onChange={(e) => setGastoFormValor(e.target.value)} placeholder="0,00" step="0.01" />
+            </div>
+            <Button onClick={handleAddGasto} className="w-full" disabled={!gastoFormTipoId || !gastoFormDescricao || !gastoFormValor}>
+              Adicionar Gasto
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Nova subcategoria */}
+      <Dialog open={showSubForm} onOpenChange={(o) => !o && setShowSubForm(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nova Subcategoria</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <div className="p-3 bg-muted rounded-lg text-sm">
+              <p className="text-muted-foreground">Macro:</p>
+              <p className="font-medium">{tiposAtivos.find(t => t.id === subFormTipoId)?.nome}</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Nome</Label>
+              <Input value={subFormNome} onChange={(e) => setSubFormNome(e.target.value)} placeholder="Ex: Parcela do carro" />
+            </div>
+            <div className="space-y-2">
+              <Label>Limite Mensal (R$, opcional)</Label>
+              <Input type="number" value={subFormLimite} onChange={(e) => setSubFormLimite(e.target.value)} placeholder="0,00" step="0.01" />
+            </div>
+            <Button onClick={handleAddSubcategoria} className="w-full" disabled={!subFormNome.trim()}>
+              Criar Subcategoria
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

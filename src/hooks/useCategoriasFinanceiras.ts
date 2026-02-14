@@ -38,7 +38,6 @@ export interface GastoPorTipo {
   mes: number;
   tipo_id: string | null;
   tipo_nome: string | null;
-  categoria_tipo: string | null;
   total_gasto: number;
 }
 
@@ -67,7 +66,7 @@ export function useCategoriasFinanceiras() {
         .from('categorias_financeiras')
         .insert({ 
           nome: categoria.nome,
-          tipo: 'essencial' as const, // Required by DB but deprecated
+          tipo: 'essencial' as const,
           tipo_id: categoria.tipo_id,
           limite_mensal: categoria.limite_mensal,
           ativa: categoria.ativa,
@@ -83,10 +82,10 @@ export function useCategoriasFinanceiras() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categorias-financeiras'] });
       queryClient.invalidateQueries({ queryKey: ['gastos-por-categoria'] });
-      toast({ title: 'Categoria criada com sucesso!' });
+      toast({ title: 'Subcategoria criada com sucesso!' });
     },
     onError: (error: Error) => {
-      toast({ title: 'Erro ao criar categoria', description: error.message, variant: 'destructive' });
+      toast({ title: 'Erro ao criar subcategoria', description: error.message, variant: 'destructive' });
     },
   });
 
@@ -110,16 +109,15 @@ export function useCategoriasFinanceiras() {
       queryClient.invalidateQueries({ queryKey: ['categorias-financeiras'] });
       queryClient.invalidateQueries({ queryKey: ['gastos-por-categoria'] });
       queryClient.invalidateQueries({ queryKey: ['gastos-por-tipo'] });
-      toast({ title: 'Categoria atualizada!' });
+      toast({ title: 'Subcategoria atualizada!' });
     },
     onError: (error: Error) => {
-      toast({ title: 'Erro ao atualizar categoria', description: error.message, variant: 'destructive' });
+      toast({ title: 'Erro ao atualizar subcategoria', description: error.message, variant: 'destructive' });
     },
   });
 
   const deleteCategoria = useMutation({
     mutationFn: async (id: string) => {
-      // Check if there are linked gastos
       const { count, error: countError } = await supabase
         .from('financeiro_gastos')
         .select('*', { count: 'exact', head: true })
@@ -127,18 +125,7 @@ export function useCategoriasFinanceiras() {
       
       if (countError) throw countError;
       if (count && count > 0) {
-        throw new Error('Não é possível excluir categoria com gastos vinculados');
-      }
-
-      // Check for subcategory gastos
-      const { count: subCount, error: subError } = await supabase
-        .from('financeiro_gastos')
-        .select('*', { count: 'exact', head: true })
-        .eq('subcategoria_id', id);
-      
-      if (subError) throw subError;
-      if (subCount && subCount > 0) {
-        throw new Error('Não é possível excluir categoria com gastos vinculados via subcategoria');
+        throw new Error('Não é possível excluir subcategoria com gastos vinculados');
       }
 
       const { error } = await supabase
@@ -150,17 +137,19 @@ export function useCategoriasFinanceiras() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categorias-financeiras'] });
-      toast({ title: 'Categoria excluída!' });
+      toast({ title: 'Subcategoria excluída!' });
     },
     onError: (error: Error) => {
-      toast({ title: 'Erro ao excluir categoria', description: error.message, variant: 'destructive' });
+      toast({ title: 'Erro ao excluir subcategoria', description: error.message, variant: 'destructive' });
     },
   });
 
-  // Derived data
-  const categoriasRaiz = categorias?.filter(c => !c.parent_id) || [];
+  // Derived data - filter by tipo_id
   const categoriasAtivas = categorias?.filter(c => c.ativa) || [];
-  const categoriasRaizAtivas = categorias?.filter(c => c.ativa && !c.parent_id) || [];
+  
+  const getSubcategoriasByTipo = (tipoId: string) => {
+    return categorias?.filter(c => c.tipo_id === tipoId && c.ativa) || [];
+  };
 
   const getSubcategorias = (parentId: string) => {
     return categorias?.filter(c => c.parent_id === parentId) || [];
@@ -172,9 +161,8 @@ export function useCategoriasFinanceiras() {
 
   return {
     categorias,
-    categoriasRaiz,
     categoriasAtivas,
-    categoriasRaizAtivas,
+    getSubcategoriasByTipo,
     getSubcategorias,
     getSubcategoriasAtivas,
     isLoading,
@@ -217,35 +205,5 @@ export function useGastosPorTipo(financeiroMensalId: string | null) {
       return data as GastoPorTipo[];
     },
     enabled: !!user && !!financeiroMensalId,
-  });
-}
-
-// Fetch gastos filtered by categoria (and optionally subcategoria) for a given month
-export function useGastosPorMesCategoria(financeiroMensalId: string | null, categoriaId: string | null, subcategoriaId?: string | null) {
-  const { user } = useAuth();
-
-  return useQuery({
-    queryKey: ['gastos-mes-categoria', financeiroMensalId, categoriaId, subcategoriaId],
-    queryFn: async () => {
-      let query = supabase
-        .from('financeiro_gastos')
-        .select('*')
-        .eq('financeiro_mensal_id', financeiroMensalId!);
-
-      if (subcategoriaId) {
-        // Filter by specific subcategoria
-        query = query.eq('subcategoria_id', subcategoriaId);
-      } else if (categoriaId) {
-        // Filter by root categoria (own gastos + subcategoria gastos)
-        query = query.eq('categoria_id', categoriaId);
-      }
-      
-      query = query.order('created_at', { ascending: false });
-
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user && !!financeiroMensalId && !!categoriaId,
   });
 }

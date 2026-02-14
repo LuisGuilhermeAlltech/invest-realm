@@ -320,13 +320,6 @@ export type Database = {
             referencedRelation: "tipos_gasto"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "categorias_financeiras_tipo_id_fkey"
-            columns: ["tipo_id"]
-            isOneToOne: false
-            referencedRelation: "vw_gastos_por_tipo_resumo"
-            referencedColumns: ["tipo_id"]
-          },
         ]
       }
       consultoria_valuation_snapshots: {
@@ -565,7 +558,7 @@ export type Database = {
           descricao: string
           financeiro_mensal_id: string
           id: string
-          subcategoria_id: string | null
+          tipo_id: string | null
           updated_at: string | null
           user_id: string
           valor: number
@@ -576,7 +569,7 @@ export type Database = {
           descricao: string
           financeiro_mensal_id: string
           id?: string
-          subcategoria_id?: string | null
+          tipo_id?: string | null
           updated_at?: string | null
           user_id: string
           valor?: number
@@ -587,7 +580,7 @@ export type Database = {
           descricao?: string
           financeiro_mensal_id?: string
           id?: string
-          subcategoria_id?: string | null
+          tipo_id?: string | null
           updated_at?: string | null
           user_id?: string
           valor?: number
@@ -650,18 +643,11 @@ export type Database = {
             referencedColumns: ["financeiro_mensal_id"]
           },
           {
-            foreignKeyName: "financeiro_gastos_subcategoria_id_fkey"
-            columns: ["subcategoria_id"]
+            foreignKeyName: "financeiro_gastos_tipo_id_fkey"
+            columns: ["tipo_id"]
             isOneToOne: false
-            referencedRelation: "categorias_financeiras"
+            referencedRelation: "tipos_gasto"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "financeiro_gastos_subcategoria_id_fkey"
-            columns: ["subcategoria_id"]
-            isOneToOne: false
-            referencedRelation: "vw_gastos_por_categoria"
-            referencedColumns: ["categoria_id"]
           },
         ]
       }
@@ -895,13 +881,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "tipos_gasto"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "limites_tipo_gasto_tipo_id_fkey"
-            columns: ["tipo_id"]
-            isOneToOne: false
-            referencedRelation: "vw_gastos_por_tipo_resumo"
-            referencedColumns: ["tipo_id"]
           },
         ]
       }
@@ -1702,13 +1681,6 @@ export type Database = {
             referencedRelation: "tipos_gasto"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "categorias_financeiras_tipo_id_fkey"
-            columns: ["tipo_id"]
-            isOneToOne: false
-            referencedRelation: "vw_gastos_por_tipo_resumo"
-            referencedColumns: ["tipo_id"]
-          },
         ]
       }
       vw_gastos_por_tipo: {
@@ -1723,18 +1695,11 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "categorias_financeiras_tipo_id_fkey"
+            foreignKeyName: "financeiro_gastos_tipo_id_fkey"
             columns: ["tipo_id"]
             isOneToOne: false
             referencedRelation: "tipos_gasto"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "categorias_financeiras_tipo_id_fkey"
-            columns: ["tipo_id"]
-            isOneToOne: false
-            referencedRelation: "vw_gastos_por_tipo_resumo"
-            referencedColumns: ["tipo_id"]
           },
         ]
       }
@@ -1748,7 +1713,15 @@ export type Database = {
           total_gasto: number | null
           user_id: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "financeiro_gastos_tipo_id_fkey"
+            columns: ["tipo_id"]
+            isOneToOne: false
+            referencedRelation: "tipos_gasto"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       vw_posicao_por_ativo: {
         Row: {

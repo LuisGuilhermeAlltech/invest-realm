@@ -9,12 +9,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Plus, Trash2, FolderTree } from 'lucide-react';
-import { useCategoriasFinanceiras, useGastosPorMesCategoria } from '@/hooks/useCategoriasFinanceiras';
+import { ArrowLeft, Plus, Trash2, Tags } from 'lucide-react';
+import { useCategoriasFinanceiras } from '@/hooks/useCategoriasFinanceiras';
+import { useTiposGasto } from '@/hooks/useTiposGasto';
 import { useFinanceiroMensal, useFinanceiroDetalhe } from '@/hooks/useFinanceiroMensal';
 import { formatCurrency } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -22,66 +25,81 @@ const MESES = [
 ];
 
 export default function FinanceiroCategoriaDetalhe() {
-  const { id } = useParams<{ id: string }>();
+  const { id: tipoId } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { categorias, getSubcategorias, getSubcategoriasAtivas, createCategoria } = useCategoriasFinanceiras();
+  const { user } = useAuth();
+  const { tipos } = useTiposGasto();
+  const { categoriasAtivas, getSubcategoriasByTipo, createCategoria } = useCategoriasFinanceiras();
   const { meses } = useFinanceiroMensal();
 
-  const categoria = categorias?.find(c => c.id === id);
-  const subcategorias = id ? getSubcategorias(id) : [];
-  const subcategoriasAtivas = id ? getSubcategoriasAtivas(id) : [];
+  const tipo = tipos?.find(t => t.id === tipoId);
+  const subcategorias = tipoId ? getSubcategoriasByTipo(tipoId) : [];
 
   // Month selector
   const [selectedMesId, setSelectedMesId] = useState<string>(meses?.[0]?.id || '');
   const selectedMes = meses?.find(m => m.id === selectedMesId);
 
-  // Gastos for this category in selected month
-  const { data: gastosCategoria } = useGastosPorMesCategoria(selectedMesId || null, id || null);
+  // Fetch gastos for this tipo in the selected month
+  const { data: gastosTipo } = useQuery({
+    queryKey: ['gastos-tipo-detalhe', selectedMesId, tipoId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('financeiro_gastos')
+        .select('*')
+        .eq('financeiro_mensal_id', selectedMesId)
+        .eq('tipo_id', tipoId!)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user && !!selectedMesId && !!tipoId,
+  });
+
   const { addGasto } = useFinanceiroDetalhe(selectedMesId || null);
 
-  // Subcategoria filter
+  // Filter state
   const [filtroSubcategoria, setFiltroSubcategoria] = useState<string>('');
 
   // New gasto form
   const [showGastoForm, setShowGastoForm] = useState(false);
-  const [novoGasto, setNovoGasto] = useState({ descricao: '', valor: '', subcategoria_id: '' });
+  const [novoGasto, setNovoGasto] = useState({ descricao: '', valor: '', categoria_id: '' });
 
   // New subcategoria form
   const [showSubForm, setShowSubForm] = useState(false);
   const [novaSubNome, setNovaSubNome] = useState('');
   const [novaSubLimite, setNovaSubLimite] = useState('');
 
-  if (!categoria) {
+  if (!tipo) {
     return (
       <div className="space-y-6">
         <Button variant="ghost" onClick={() => navigate('/financeiro/categorias')}>
           <ArrowLeft className="h-4 w-4 mr-2" /> Voltar
         </Button>
-        <div className="text-center py-8 text-muted-foreground">Categoria não encontrada.</div>
+        <div className="text-center py-8 text-muted-foreground">Macro não encontrada.</div>
       </div>
     );
   }
 
-  // Calculate totals for this category
-  const totalGasto = gastosCategoria?.reduce((sum, g) => sum + Number(g.valor), 0) || 0;
-  const limite = categoria.limite_mensal;
-  const disponivel = limite > 0 ? limite - totalGasto : 0;
-  const percentual = limite > 0 ? (totalGasto / limite) * 100 : 0;
+  const totalGasto = gastosTipo?.reduce((sum, g) => sum + Number(g.valor), 0) || 0;
+  const gastosDiretos = gastosTipo?.filter(g => !g.categoria_id) || [];
+  const gastosComSub = gastosTipo?.filter(g => !!g.categoria_id) || [];
 
-  // Filter gastos by subcategoria
-  const gastosFiltrados = filtroSubcategoria
-    ? gastosCategoria?.filter(g => g.subcategoria_id === filtroSubcategoria)
-    : gastosCategoria;
+  // Filter
+  const gastosFiltrados = filtroSubcategoria === '__diretos__'
+    ? gastosDiretos
+    : filtroSubcategoria
+      ? gastosTipo?.filter(g => g.categoria_id === filtroSubcategoria)
+      : gastosTipo;
 
   const handleAddGasto = () => {
     if (!novoGasto.descricao || !novoGasto.valor || !selectedMesId) return;
     addGasto({
       descricao: novoGasto.descricao,
       valor: parseFloat(novoGasto.valor),
-      categoria_id: id!,
-      subcategoria_id: novoGasto.subcategoria_id || null,
+      tipo_id: tipoId!,
+      categoria_id: novoGasto.categoria_id || null,
     });
-    setNovoGasto({ descricao: '', valor: '', subcategoria_id: '' });
+    setNovoGasto({ descricao: '', valor: '', categoria_id: '' });
     setShowGastoForm(false);
   };
 
@@ -89,19 +107,18 @@ export default function FinanceiroCategoriaDetalhe() {
     if (!novaSubNome.trim()) return;
     createCategoria({
       nome: novaSubNome.trim(),
-      tipo_id: categoria.tipo_id,
+      tipo_id: tipoId!,
       limite_mensal: parseFloat(novaSubLimite) || 0,
       ativa: true,
-      parent_id: id!,
     });
     setNovaSubNome('');
     setNovaSubLimite('');
     setShowSubForm(false);
   };
 
-  const getSubcategoriaNome = (subId: string | null) => {
-    if (!subId) return '—';
-    return subcategorias.find(s => s.id === subId)?.nome || '—';
+  const getSubcategoriaNome = (catId: string | null) => {
+    if (!catId) return 'Direto';
+    return subcategorias.find(s => s.id === catId)?.nome || '—';
   };
 
   return (
@@ -112,11 +129,9 @@ export default function FinanceiroCategoriaDetalhe() {
         </Button>
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <FolderTree className="h-5 w-5" /> {categoria.nome}
+            <Tags className="h-5 w-5" /> {tipo.nome}
           </h1>
-          {categoria.parent_id && (
-            <p className="text-muted-foreground text-sm">Subcategoria</p>
-          )}
+          <p className="text-muted-foreground text-sm">Categoria Macro</p>
         </div>
       </div>
 
@@ -135,42 +150,32 @@ export default function FinanceiroCategoriaDetalhe() {
         </Select>
       </div>
 
-      {/* Summary cards */}
+      {/* Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Orçamento / Limite</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {limite > 0 ? formatCurrency(limite, 'BRL') : 'Sem limite'}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Gasto no Mês</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Gasto</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-red-600">{formatCurrency(totalGasto, 'BRL')}</div>
-            {limite > 0 && (
-              <>
-                <Progress value={Math.min(percentual, 100)} className={cn("h-2 mt-2", percentual >= 90 ? '[&>div]:bg-red-500' : percentual >= 70 ? '[&>div]:bg-amber-500' : '[&>div]:bg-green-500')} />
-                <p className={cn("text-xs mt-1", percentual >= 90 ? 'text-red-600' : percentual >= 70 ? 'text-amber-600' : 'text-green-600')}>
-                  {percentual.toFixed(0)}% utilizado
-                </p>
-              </>
-            )}
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Disponível</CardTitle>
+            <CardTitle className="text-sm font-medium">Gastos Diretos</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className={cn("text-2xl font-bold", disponivel >= 0 ? "text-green-600" : "text-red-600")}>
-              {limite > 0 ? formatCurrency(disponivel, 'BRL') : '—'}
+            <div className="text-2xl font-bold">
+              {formatCurrency(gastosDiretos.reduce((s, g) => s + Number(g.valor), 0), 'BRL')}
             </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Subcategorias</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{subcategorias.length}</div>
           </CardContent>
         </Card>
       </div>
@@ -178,42 +183,42 @@ export default function FinanceiroCategoriaDetalhe() {
       {/* Actions */}
       <div className="flex gap-2">
         <Button onClick={() => setShowGastoForm(true)} disabled={!selectedMesId}>
-          <Plus className="h-4 w-4 mr-2" /> Novo gasto nesta categoria
+          <Plus className="h-4 w-4 mr-2" /> Novo gasto em {tipo.nome}
         </Button>
         <Button variant="outline" onClick={() => setShowSubForm(true)}>
           <Plus className="h-4 w-4 mr-2" /> Nova subcategoria
         </Button>
       </div>
 
-      {/* Subcategorias section */}
-      {subcategorias.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Subcategorias</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2 mb-4">
-              <Badge
-                variant={filtroSubcategoria === '' ? 'default' : 'outline'}
-                className="cursor-pointer"
-                onClick={() => setFiltroSubcategoria('')}
-              >
-                Todas
-              </Badge>
-              {subcategorias.map((sub) => (
-                <Badge
-                  key={sub.id}
-                  variant={filtroSubcategoria === sub.id ? 'default' : 'outline'}
-                  className="cursor-pointer"
-                  onClick={() => setFiltroSubcategoria(sub.id)}
-                >
-                  {sub.nome}
-                  {sub.limite_mensal > 0 && ` (${formatCurrency(sub.limite_mensal, 'BRL')})`}
-                </Badge>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+      {/* Filter badges */}
+      {(subcategorias.length > 0 || gastosDiretos.length > 0) && (
+        <div className="flex flex-wrap gap-2">
+          <Badge
+            variant={filtroSubcategoria === '' ? 'default' : 'outline'}
+            className="cursor-pointer"
+            onClick={() => setFiltroSubcategoria('')}
+          >
+            Todos
+          </Badge>
+          <Badge
+            variant={filtroSubcategoria === '__diretos__' ? 'default' : 'outline'}
+            className="cursor-pointer"
+            onClick={() => setFiltroSubcategoria('__diretos__')}
+          >
+            Diretos
+          </Badge>
+          {subcategorias.map((sub) => (
+            <Badge
+              key={sub.id}
+              variant={filtroSubcategoria === sub.id ? 'default' : 'outline'}
+              className="cursor-pointer"
+              onClick={() => setFiltroSubcategoria(sub.id)}
+            >
+              {sub.nome}
+              {sub.limite_mensal > 0 && ` (${formatCurrency(sub.limite_mensal, 'BRL')})`}
+            </Badge>
+          ))}
+        </div>
       )}
 
       {/* Lançamentos */}
@@ -225,9 +230,9 @@ export default function FinanceiroCategoriaDetalhe() {
         </CardHeader>
         <CardContent>
           {!selectedMesId ? (
-            <div className="text-center py-8 text-muted-foreground">Selecione um mês para ver os lançamentos.</div>
+            <div className="text-center py-8 text-muted-foreground">Selecione um mês.</div>
           ) : !gastosFiltrados?.length ? (
-            <div className="text-center py-8 text-muted-foreground">Nenhum gasto nesta categoria para o mês selecionado.</div>
+            <div className="text-center py-8 text-muted-foreground">Nenhum gasto nesta macro para o mês selecionado.</div>
           ) : (
             <Table>
               <TableHeader>
@@ -241,7 +246,7 @@ export default function FinanceiroCategoriaDetalhe() {
                 {gastosFiltrados.map((g) => (
                   <TableRow key={g.id}>
                     <TableCell>{g.descricao}</TableCell>
-                    <TableCell className="text-muted-foreground">{getSubcategoriaNome(g.subcategoria_id)}</TableCell>
+                    <TableCell className="text-muted-foreground">{getSubcategoriaNome(g.categoria_id)}</TableCell>
                     <TableCell className="text-right text-red-600">{formatCurrency(Number(g.valor), 'BRL')}</TableCell>
                   </TableRow>
                 ))}
@@ -255,7 +260,7 @@ export default function FinanceiroCategoriaDetalhe() {
       <Dialog open={showGastoForm} onOpenChange={(o) => !o && setShowGastoForm(false)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Novo Gasto — {categoria.nome}</DialogTitle>
+            <DialogTitle>Novo Gasto — {tipo.nome}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-4">
             <div className="space-y-2">
@@ -266,14 +271,14 @@ export default function FinanceiroCategoriaDetalhe() {
               <Label>Valor (R$)</Label>
               <Input type="number" value={novoGasto.valor} onChange={(e) => setNovoGasto({ ...novoGasto, valor: e.target.value })} placeholder="0,00" step="0.01" />
             </div>
-            {subcategoriasAtivas.length > 0 && (
+            {subcategorias.length > 0 && (
               <div className="space-y-2">
                 <Label>Subcategoria (opcional)</Label>
-                <Select value={novoGasto.subcategoria_id} onValueChange={(v) => setNovoGasto({ ...novoGasto, subcategoria_id: v })}>
-                  <SelectTrigger><SelectValue placeholder="Nenhuma" /></SelectTrigger>
+                <Select value={novoGasto.categoria_id} onValueChange={(v) => setNovoGasto({ ...novoGasto, categoria_id: v })}>
+                  <SelectTrigger><SelectValue placeholder="Nenhuma (gasto direto)" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Nenhuma</SelectItem>
-                    {subcategoriasAtivas.map((sub) => (
+                    <SelectItem value="">Nenhuma (gasto direto)</SelectItem>
+                    {subcategorias.map((sub) => (
                       <SelectItem key={sub.id} value={sub.id}>{sub.nome}</SelectItem>
                     ))}
                   </SelectContent>
@@ -291,7 +296,7 @@ export default function FinanceiroCategoriaDetalhe() {
       <Dialog open={showSubForm} onOpenChange={(o) => !o && setShowSubForm(false)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Nova Subcategoria de {categoria.nome}</DialogTitle>
+            <DialogTitle>Nova Subcategoria de {tipo.nome}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-4">
             <div className="space-y-2">
