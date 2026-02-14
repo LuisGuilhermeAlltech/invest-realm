@@ -278,11 +278,11 @@ export default function FinanceiroMensal() {
               </TableHeader>
               <TableBody>
                 {meses.map((m) => (
-                  <TableRow 
-                    key={m.id}
-                    className="cursor-pointer hover:bg-accent/50"
-                    onClick={() => setSelectedMesId(m.id)}
-                  >
+                    <TableRow 
+                      key={m.id}
+                      className="cursor-pointer hover:bg-accent/50"
+                      onClick={() => navigate(`/financeiro/mes/${m.id}`)}
+                    >
                     <TableCell className="font-medium">
                       {MESES[m.mes - 1]} {m.ano}
                     </TableCell>

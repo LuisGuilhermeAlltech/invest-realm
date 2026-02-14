@@ -7,8 +7,9 @@ export interface CategoriaFinanceira {
   id: string;
   user_id: string;
   nome: string;
-  tipo: string | null; // Kept for backwards compatibility
+  tipo: string | null;
   tipo_id: string | null;
+  parent_id: string | null;
   limite_mensal: number;
   ativa: boolean;
   created_at: string | null;
@@ -61,7 +62,7 @@ export function useCategoriasFinanceiras() {
   });
 
   const createCategoria = useMutation({
-    mutationFn: async (categoria: { nome: string; tipo_id: string | null; limite_mensal: number; ativa: boolean }) => {
+    mutationFn: async (categoria: { nome: string; tipo_id: string | null; limite_mensal: number; ativa: boolean; parent_id?: string | null }) => {
       const { data, error } = await supabase
         .from('categorias_financeiras')
         .insert({ 
@@ -70,6 +71,7 @@ export function useCategoriasFinanceiras() {
           tipo_id: categoria.tipo_id,
           limite_mensal: categoria.limite_mensal,
           ativa: categoria.ativa,
+          parent_id: categoria.parent_id || null,
           user_id: user!.id 
         })
         .select()
@@ -89,12 +91,13 @@ export function useCategoriasFinanceiras() {
   });
 
   const updateCategoria = useMutation({
-    mutationFn: async ({ id, nome, tipo_id, limite_mensal, ativa }: { id: string; nome?: string; tipo_id?: string | null; limite_mensal?: number; ativa?: boolean }) => {
+    mutationFn: async ({ id, nome, tipo_id, limite_mensal, ativa, parent_id }: { id: string; nome?: string; tipo_id?: string | null; limite_mensal?: number; ativa?: boolean; parent_id?: string | null }) => {
       const updates: Record<string, unknown> = {};
       if (nome !== undefined) updates.nome = nome;
       if (tipo_id !== undefined) updates.tipo_id = tipo_id;
       if (limite_mensal !== undefined) updates.limite_mensal = limite_mensal;
       if (ativa !== undefined) updates.ativa = ativa;
+      if (parent_id !== undefined) updates.parent_id = parent_id;
       
       const { error } = await supabase
         .from('categorias_financeiras')
@@ -127,6 +130,17 @@ export function useCategoriasFinanceiras() {
         throw new Error('Não é possível excluir categoria com gastos vinculados');
       }
 
+      // Check for subcategory gastos
+      const { count: subCount, error: subError } = await supabase
+        .from('financeiro_gastos')
+        .select('*', { count: 'exact', head: true })
+        .eq('subcategoria_id', id);
+      
+      if (subError) throw subError;
+      if (subCount && subCount > 0) {
+        throw new Error('Não é possível excluir categoria com gastos vinculados via subcategoria');
+      }
+
       const { error } = await supabase
         .from('categorias_financeiras')
         .delete()
@@ -143,9 +157,26 @@ export function useCategoriasFinanceiras() {
     },
   });
 
+  // Derived data
+  const categoriasRaiz = categorias?.filter(c => !c.parent_id) || [];
+  const categoriasAtivas = categorias?.filter(c => c.ativa) || [];
+  const categoriasRaizAtivas = categorias?.filter(c => c.ativa && !c.parent_id) || [];
+
+  const getSubcategorias = (parentId: string) => {
+    return categorias?.filter(c => c.parent_id === parentId) || [];
+  };
+
+  const getSubcategoriasAtivas = (parentId: string) => {
+    return categorias?.filter(c => c.parent_id === parentId && c.ativa) || [];
+  };
+
   return {
     categorias,
-    categoriasAtivas: categorias?.filter(c => c.ativa) || [],
+    categoriasRaiz,
+    categoriasAtivas,
+    categoriasRaizAtivas,
+    getSubcategorias,
+    getSubcategoriasAtivas,
     isLoading,
     createCategoria: createCategoria.mutate,
     updateCategoria: updateCategoria.mutate,
@@ -186,5 +217,35 @@ export function useGastosPorTipo(financeiroMensalId: string | null) {
       return data as GastoPorTipo[];
     },
     enabled: !!user && !!financeiroMensalId,
+  });
+}
+
+// Fetch gastos filtered by categoria (and optionally subcategoria) for a given month
+export function useGastosPorMesCategoria(financeiroMensalId: string | null, categoriaId: string | null, subcategoriaId?: string | null) {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ['gastos-mes-categoria', financeiroMensalId, categoriaId, subcategoriaId],
+    queryFn: async () => {
+      let query = supabase
+        .from('financeiro_gastos')
+        .select('*')
+        .eq('financeiro_mensal_id', financeiroMensalId!);
+
+      if (subcategoriaId) {
+        // Filter by specific subcategoria
+        query = query.eq('subcategoria_id', subcategoriaId);
+      } else if (categoriaId) {
+        // Filter by root categoria (own gastos + subcategoria gastos)
+        query = query.eq('categoria_id', categoriaId);
+      }
+      
+      query = query.order('created_at', { ascending: false });
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user && !!financeiroMensalId && !!categoriaId,
   });
 }

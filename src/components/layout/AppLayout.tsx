@@ -31,6 +31,7 @@ const navItems = [
   { path: '/proventos', label: 'Proventos', icon: Coins },
   { path: '/metas', label: 'Metas', icon: Target },
   { path: '/financeiro', label: 'Financeiro', icon: Calculator },
+  { path: '/financeiro/categorias', label: 'Categorias', icon: Calculator, indent: true },
   { path: '/contas-a-pagar', label: 'Contas', icon: CreditCard },
   { path: '/agente-aporte', label: 'Agente de Aporte', icon: TrendingUp },
   { path: '/cadastros', label: 'Cadastros', icon: Settings },
@@ -57,19 +58,21 @@ export default function AppLayout({ children }: AppLayoutProps) {
             <ul className="flex flex-1 flex-col gap-1">
               {navItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = location.pathname === item.path;
+                const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path + '/'));
+                const indent = 'indent' in item && item.indent;
                 return (
                   <li key={item.path}>
                     <Link
                       to={item.path}
                       className={cn(
                         'group flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                        indent && 'pl-9 text-xs',
                         isActive
                           ? 'bg-primary text-primary-foreground'
                           : 'text-muted-foreground hover:bg-accent hover:text-foreground'
                       )}
                     >
-                      <Icon className="h-4 w-4" />
+                      {!indent && <Icon className="h-4 w-4" />}
                       {item.label}
                     </Link>
                   </li>
@@ -112,7 +115,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
           <nav className="flex flex-col p-4">
             {navItems.map((item) => {
               const Icon = item.icon;
-              const isActive = location.pathname === item.path;
+              const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path + '/'));
+              const indent = 'indent' in item && item.indent;
               return (
                 <Link
                   key={item.path}
@@ -120,12 +124,13 @@ export default function AppLayout({ children }: AppLayoutProps) {
                   onClick={() => setMobileMenuOpen(false)}
                   className={cn(
                     'flex items-center gap-3 rounded-md px-3 py-3 text-sm font-medium transition-colors',
+                    indent && 'pl-9 text-xs',
                     isActive
                       ? 'bg-primary text-primary-foreground'
                       : 'text-muted-foreground hover:bg-accent hover:text-foreground'
                   )}
                 >
-                  <Icon className="h-4 w-4" />
+                  {!indent && <Icon className="h-4 w-4" />}
                   {item.label}
                 </Link>
               );

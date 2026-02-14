@@ -2,14 +2,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { Database } from '@/integrations/supabase/types';
-
-type TipoCategoria = Database['public']['Enums']['tipo_categoria_financeira'];
+import { useTiposGasto } from '@/hooks/useTiposGasto';
 
 export interface LimiteTipoGasto {
   id: string;
   user_id: string;
-  tipo: TipoCategoria;
+  tipo_id: string | null;
+  tipo: string | null; // legacy enum, kept for compatibility
   limite_mensal: number;
   ano: number;
   mes: number;
@@ -24,25 +23,6 @@ export interface GastoTipoComLimite {
   limite_mensal: number;
   percentual: number;
 }
-
-// Map from tipo_nome to enum value
-function tipoNomeToEnum(tipoNome: string): TipoCategoria | null {
-  const normalized = tipoNome.toLowerCase().trim();
-  if (normalized === 'essencial') return 'essencial';
-  if (normalized === 'não essencial' || normalized === 'nao essencial') return 'nao_essencial';
-  if (normalized === 'lazer') return 'lazer';
-  if (normalized === 'investimentos') return 'investimentos';
-  return null;
-}
-
-export const ALL_TIPOS_CATEGORIA: TipoCategoria[] = ['essencial', 'nao_essencial', 'lazer', 'investimentos'];
-
-const TIPOS_CATEGORIA_LABELS: Record<TipoCategoria, string> = {
-  essencial: 'Essencial',
-  nao_essencial: 'Não Essencial',
-  lazer: 'Lazer',
-  investimentos: 'Investimentos',
-};
 
 export function useLimitesTipoGasto(ano: number, mes: number) {
   const { user } = useAuth();
@@ -65,12 +45,12 @@ export function useLimitesTipoGasto(ano: number, mes: number) {
   });
 
   const upsertLimite = useMutation({
-    mutationFn: async ({ tipo, limite_mensal }: { tipo: TipoCategoria; limite_mensal: number }) => {
-      // Query directly to check if limit exists (don't rely on stale state)
+    mutationFn: async ({ tipo_id, limite_mensal }: { tipo_id: string; limite_mensal: number }) => {
+      // Check if limit exists for this tipo_id
       const { data: existingData, error: fetchError } = await supabase
         .from('limites_tipo_gasto')
         .select('id')
-        .eq('tipo', tipo)
+        .eq('tipo_id', tipo_id)
         .eq('ano', ano)
         .eq('mes', mes)
         .maybeSingle();
@@ -78,25 +58,22 @@ export function useLimitesTipoGasto(ano: number, mes: number) {
       if (fetchError) throw fetchError;
       
       if (existingData) {
-        // Update existing
         const { error } = await supabase
           .from('limites_tipo_gasto')
           .update({ limite_mensal })
           .eq('id', existingData.id);
-        
         if (error) throw error;
       } else {
-        // Insert new
         const { error } = await supabase
           .from('limites_tipo_gasto')
           .insert({ 
             user_id: user!.id, 
-            tipo, 
+            tipo_id,
+            tipo: 'essencial' as const, // legacy, required by DB
             limite_mensal, 
             ano, 
             mes 
           });
-        
         if (error) throw error;
       }
     },
@@ -110,21 +87,19 @@ export function useLimitesTipoGasto(ano: number, mes: number) {
     },
   });
 
-  const getLimiteByTipo = (tipo: TipoCategoria): number => {
-    return limites?.find(l => l.tipo === tipo)?.limite_mensal || 0;
+  const getLimiteByTipoId = (tipoId: string): number => {
+    return limites?.find(l => l.tipo_id === tipoId)?.limite_mensal || 0;
   };
 
   return {
     limites,
     isLoading,
     upsertLimite: upsertLimite.mutate,
-    getLimiteByTipo,
-    tiposLabels: TIPOS_CATEGORIA_LABELS,
-    allTipos: ALL_TIPOS_CATEGORIA,
+    getLimiteByTipoId,
   };
 }
 
-// Hook to get gastos by tipo (from tipos_gasto table) with limits
+// Hook to get gastos by tipo with limits - now using tipo_id directly
 export function useGastosPorCategoriaComLimites(
   financeiroMensalId: string | null,
   ano: number,
@@ -132,7 +107,6 @@ export function useGastosPorCategoriaComLimites(
 ) {
   const { user } = useAuth();
 
-  // Get gastos grouped by tipo_id from the corrected view
   const { data: gastosPorTipo, isLoading: loadingGastos } = useQuery({
     queryKey: ['gastos-por-categoria-tipo', financeiroMensalId],
     queryFn: async () => {
@@ -147,7 +121,6 @@ export function useGastosPorCategoriaComLimites(
     enabled: !!user && !!financeiroMensalId,
   });
 
-  // Get limits for the month
   const { data: limites, isLoading: loadingLimites } = useQuery({
     queryKey: ['limites-tipo-gasto', ano, mes],
     queryFn: async () => {
@@ -163,53 +136,47 @@ export function useGastosPorCategoriaComLimites(
     enabled: !!user && !!ano && !!mes,
   });
 
-  // Combine gastos with limits, grouped by tipo_nome
   const gastosTipoComLimites: GastoTipoComLimite[] = [];
   
   if (gastosPorTipo) {
-    // Group gastos by tipo_nome (from the view, which uses tipos_gasto table)
+    // Group by tipo_id directly
     const gastosAgrupados = gastosPorTipo.reduce((acc, g) => {
-      const tipoNome = g.tipo_nome;
-      if (tipoNome) {
-        acc[tipoNome] = (acc[tipoNome] || 0) + Number(g.total_gasto);
-      }
+      const key = g.tipo_id || 'sem_tipo';
+      acc[key] = {
+        total: (acc[key]?.total || 0) + Number(g.total_gasto),
+        nome: g.tipo_nome || 'Sem tipo',
+        tipo_id: g.tipo_id,
+      };
       return acc;
-    }, {} as Record<string, number>);
+    }, {} as Record<string, { total: number; nome: string; tipo_id: string | null }>);
 
-    // Get unique tipo names
-    const tipoNomes = [...new Set(gastosPorTipo.map(g => g.tipo_nome).filter(Boolean))];
-    
-    // Create combined data for each tipo
-    for (const tipoNome of tipoNomes) {
-      const totalGasto = gastosAgrupados[tipoNome as string] || 0;
-      
-      // Map tipo_nome to enum to find the limit
-      const tipoEnum = tipoNomeToEnum(tipoNome as string);
-      const limite = tipoEnum && limites 
-        ? limites.find(l => l.tipo === tipoEnum)?.limite_mensal || 0 
+    for (const [, value] of Object.entries(gastosAgrupados)) {
+      // Match limit by tipo_id directly
+      const limite = value.tipo_id && limites 
+        ? limites.find(l => l.tipo_id === value.tipo_id)?.limite_mensal || 0 
         : 0;
-      const percentual = limite > 0 ? (totalGasto / limite) * 100 : 0;
+      const percentual = limite > 0 ? (value.total / limite) * 100 : 0;
 
-      // Only show if there are gastos or a limit set
-      if (totalGasto > 0 || limite > 0) {
+      if (value.total > 0 || limite > 0) {
         gastosTipoComLimites.push({
-          tipo_id: gastosPorTipo.find(g => g.tipo_nome === tipoNome)?.tipo_id || null,
-          tipo_nome: tipoNome,
-          total_gasto: totalGasto,
+          tipo_id: value.tipo_id,
+          tipo_nome: value.nome,
+          total_gasto: value.total,
           limite_mensal: limite,
           percentual,
         });
       }
     }
 
-    // Also add tipos that have limits but no gastos
+    // Add tipos that have limits but no gastos
     if (limites) {
       for (const limite of limites) {
-        const tipoLabel = TIPOS_CATEGORIA_LABELS[limite.tipo];
-        if (!gastosTipoComLimites.find(g => g.tipo_nome === tipoLabel)) {
+        if (limite.tipo_id && !gastosTipoComLimites.find(g => g.tipo_id === limite.tipo_id)) {
+          // Find tipo name
+          const tipoGasto = gastosPorTipo?.find(g => g.tipo_id === limite.tipo_id);
           gastosTipoComLimites.push({
-            tipo_id: null,
-            tipo_nome: tipoLabel,
+            tipo_id: limite.tipo_id,
+            tipo_nome: tipoGasto?.tipo_nome || 'Tipo',
             total_gasto: 0,
             limite_mensal: limite.limite_mensal,
             percentual: 0,
@@ -225,17 +192,16 @@ export function useGastosPorCategoriaComLimites(
   };
 }
 
-// Helper to check if a gasto exceeds the tipo limit
 export function checkLimiteExcedido(
   gastosTipoComLimites: GastoTipoComLimite[],
-  tipoNome: string | null,
+  tipoId: string | null,
   novoValor: number
 ): { excedido: boolean; percentualApos: number; limite: number } {
-  if (!tipoNome) {
+  if (!tipoId) {
     return { excedido: false, percentualApos: 0, limite: 0 };
   }
 
-  const tipoData = gastosTipoComLimites.find(g => g.tipo_nome === tipoNome);
+  const tipoData = gastosTipoComLimites.find(g => g.tipo_id === tipoId);
   if (!tipoData || tipoData.limite_mensal === 0) {
     return { excedido: false, percentualApos: 0, limite: 0 };
   }
