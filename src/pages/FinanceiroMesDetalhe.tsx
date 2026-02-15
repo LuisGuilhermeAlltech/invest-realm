@@ -407,10 +407,10 @@ export default function FinanceiroMesDetalhe() {
             {gastoFormTipoId && subcategoriasForGastoForm.length > 0 && (
               <div className="space-y-2">
                 <Label>Subcategoria</Label>
-                <Select value={gastoFormCategoriaId} onValueChange={setGastoFormCategoriaId}>
+                <Select value={gastoFormCategoriaId || '__none__'} onValueChange={(v) => setGastoFormCategoriaId(v === '__none__' ? '' : v)}>
                   <SelectTrigger><SelectValue placeholder="Nenhuma" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Nenhuma</SelectItem>
+                    <SelectItem value="__none__">Nenhuma</SelectItem>
                     {subcategoriasForGastoForm.map((cat) => (
                       <SelectItem key={cat.id} value={cat.id}>{cat.nome}</SelectItem>
                     ))}

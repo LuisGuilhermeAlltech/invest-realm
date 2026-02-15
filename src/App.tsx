@@ -1,3 +1,4 @@
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -45,7 +46,7 @@ function AppRoutes() {
       <Route path="/proventos" element={<ProtectedRoute><Proventos /></ProtectedRoute>} />
       <Route path="/metas" element={<ProtectedRoute><Metas /></ProtectedRoute>} />
       <Route path="/financeiro" element={<ProtectedRoute><FinanceiroMensal /></ProtectedRoute>} />
-      <Route path="/financeiro/mes/:id" element={<ProtectedRoute><FinanceiroMesDetalhe /></ProtectedRoute>} />
+      <Route path="/financeiro/mes/:id" element={<ProtectedRoute><ErrorBoundary fallbackMessage="Ocorreu um erro ao carregar a página. Veja o console."><FinanceiroMesDetalhe /></ErrorBoundary></ProtectedRoute>} />
       <Route path="/financeiro/categorias" element={<ProtectedRoute><FinanceiroCategorias /></ProtectedRoute>} />
       <Route path="/financeiro/categorias/:id" element={<ProtectedRoute><FinanceiroCategoriaDetalhe /></ProtectedRoute>} />
       <Route path="/contas-a-pagar" element={<ProtectedRoute><ContasAPagar /></ProtectedRoute>} />
