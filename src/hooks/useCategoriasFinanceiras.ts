@@ -116,27 +116,36 @@ export function useCategoriasFinanceiras() {
     },
   });
 
+  const checkGastosVinculados = async (categoriaId: string): Promise<number> => {
+    const { count, error } = await supabase
+      .from('financeiro_gastos')
+      .select('*', { count: 'exact', head: true })
+      .eq('categoria_id', categoriaId);
+    if (error) throw error;
+    return count || 0;
+  };
+
   const deleteCategoria = useMutation({
     mutationFn: async (id: string) => {
-      const { count, error: countError } = await supabase
+      // Nullify linked gastos first (move to "direto")
+      const { error: updateError } = await supabase
         .from('financeiro_gastos')
-        .select('*', { count: 'exact', head: true })
+        .update({ categoria_id: null })
         .eq('categoria_id', id);
-      
-      if (countError) throw countError;
-      if (count && count > 0) {
-        throw new Error('Não é possível excluir subcategoria com gastos vinculados');
-      }
+      if (updateError) throw updateError;
 
       const { error } = await supabase
         .from('categorias_financeiras')
         .delete()
         .eq('id', id);
-      
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categorias-financeiras'] });
+      queryClient.invalidateQueries({ queryKey: ['financeiro-gastos'] });
+      queryClient.invalidateQueries({ queryKey: ['financeiro-mensal'] });
+      queryClient.invalidateQueries({ queryKey: ['gastos-por-categoria'] });
+      queryClient.invalidateQueries({ queryKey: ['gastos-por-tipo'] });
       toast({ title: 'Subcategoria excluída!' });
     },
     onError: (error: Error) => {
@@ -169,6 +178,7 @@ export function useCategoriasFinanceiras() {
     createCategoria: createCategoria.mutate,
     updateCategoria: updateCategoria.mutate,
     deleteCategoria: deleteCategoria.mutate,
+    checkGastosVinculados,
   };
 }
 

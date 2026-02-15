@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Plus, Search, Tags, FolderTree, Settings, Trash2 } from 'lucide-react';
 import { useCategoriasFinanceiras, CategoriaFinanceira } from '@/hooks/useCategoriasFinanceiras';
 import { useTiposGasto } from '@/hooks/useTiposGasto';
@@ -17,7 +17,7 @@ import TiposGastoModal from '@/components/financeiro/TiposGastoModal';
 
 export default function FinanceiroCategorias() {
   const navigate = useNavigate();
-  const { categorias, categoriasAtivas, isLoading, createCategoria, updateCategoria, deleteCategoria } = useCategoriasFinanceiras();
+  const { categorias, categoriasAtivas, isLoading, createCategoria, updateCategoria, deleteCategoria, checkGastosVinculados } = useCategoriasFinanceiras();
   const { tiposAtivos } = useTiposGasto();
 
   const [search, setSearch] = useState('');
@@ -29,6 +29,9 @@ export default function FinanceiroCategorias() {
     limite_mensal: '',
     ativa: true,
   });
+
+  // Delete confirmation state
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; nome: string; count: number } | null>(null);
 
   const resetForm = () => {
     setFormData({ nome: '', tipo_id: '', limite_mensal: '', ativa: true });
@@ -47,16 +50,30 @@ export default function FinanceiroCategorias() {
   };
 
   const handleNewSubInMacro = (tipoId: string) => {
-    setFormData({
-      nome: '',
-      tipo_id: tipoId,
-      limite_mensal: '',
-      ativa: true,
-    });
+    setFormData({ nome: '', tipo_id: tipoId, limite_mensal: '', ativa: true });
     setShowForm(true);
   };
 
-  // Group subcategorias (categorias_financeiras) by Macro (tipos_gasto)
+  const handleDeleteClick = async (cat: CategoriaFinanceira) => {
+    try {
+      const count = await checkGastosVinculados(cat.id);
+      if (count > 0) {
+        setDeleteConfirm({ id: cat.id, nome: cat.nome, count });
+      } else {
+        deleteCategoria(cat.id);
+      }
+    } catch {
+      deleteCategoria(cat.id);
+    }
+  };
+
+  const confirmDelete = () => {
+    if (!deleteConfirm) return;
+    deleteCategoria(deleteConfirm.id);
+    setDeleteConfirm(null);
+  };
+
+  // Group subcategorias by Macro
   const subcategoriasByMacro = () => {
     const groups: Record<string, { tipoNome: string; tipoId: string; subcategorias: CategoriaFinanceira[] }> = {};
     
@@ -138,6 +155,24 @@ export default function FinanceiroCategorias() {
         </DialogContent>
       </Dialog>
 
+      {/* Delete confirmation dialog */}
+      <Dialog open={!!deleteConfirm} onOpenChange={(o) => !o && setDeleteConfirm(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Excluir subcategoria</DialogTitle>
+            <DialogDescription>
+              A subcategoria <strong>{deleteConfirm?.nome}</strong> possui{' '}
+              <strong>{deleteConfirm?.count}</strong> gasto{(deleteConfirm?.count || 0) !== 1 ? 's' : ''} vinculado{(deleteConfirm?.count || 0) !== 1 ? 's' : ''}.
+              Ao excluir, eles serão movidos para "Sem subcategoria" (gastos diretos na mesma Macro).
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setDeleteConfirm(null)}>Cancelar</Button>
+            <Button variant="destructive" onClick={confirmDelete}>Excluir</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Subcategorias grouped by Macro */}
       {isLoading ? (
         <div className="text-center py-8 text-muted-foreground">Carregando...</div>
@@ -184,7 +219,7 @@ export default function FinanceiroCategorias() {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8"
-                          onClick={() => deleteCategoria(cat.id)}
+                          onClick={() => handleDeleteClick(cat)}
                         >
                           <Trash2 className="h-3 w-3 text-destructive" />
                         </Button>
