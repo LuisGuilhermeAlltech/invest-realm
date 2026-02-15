@@ -7,14 +7,14 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Plus, Trash2, TrendingUp, TrendingDown, Wallet, ArrowRight } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { ArrowLeft, Plus, Trash2, TrendingUp, TrendingDown, Wallet, ArrowRight, ChevronDown } from 'lucide-react';
 import { useFinanceiroMensal, useFinanceiroDetalhe } from '@/hooks/useFinanceiroMensal';
-import { useCategoriasFinanceiras, useGastosPorCategoria } from '@/hooks/useCategoriasFinanceiras';
+import { useCategoriasFinanceiras } from '@/hooks/useCategoriasFinanceiras';
 import { useTiposGasto } from '@/hooks/useTiposGasto';
-import { useGastosPorCategoriaComLimites } from '@/hooks/useLimitesTipoGasto';
-import { TotaisPorTipoCardsComLimites } from '@/components/financeiro/FinanceiroCharts';
 import { formatCurrency } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -39,23 +39,18 @@ export default function FinanceiroMesDetalhe() {
 
   const { categoriasAtivas, getSubcategoriasByTipo, createCategoria } = useCategoriasFinanceiras();
   const { tipos, tiposAtivos } = useTiposGasto();
-  const { gastosTipoComLimites } = useGastosPorCategoriaComLimites(
-    id || null,
-    mes?.ano || new Date().getFullYear(),
-    mes?.mes || new Date().getMonth() + 1
-  );
 
   const [novaReceita, setNovaReceita] = useState({ descricao: '', valor: '' });
   
-  // Gasto form state
-  const [showGastoForm, setShowGastoForm] = useState(false);
+  // Gasto sheet state
+  const [showGastoSheet, setShowGastoSheet] = useState(false);
   const [gastoFormTipoId, setGastoFormTipoId] = useState('');
   const [gastoFormCategoriaId, setGastoFormCategoriaId] = useState('');
   const [gastoFormDescricao, setGastoFormDescricao] = useState('');
   const [gastoFormValor, setGastoFormValor] = useState('');
 
-  // New subcategoria form
-  const [showSubForm, setShowSubForm] = useState(false);
+  // Subcategoria dialog state
+  const [showSubDialog, setShowSubDialog] = useState(false);
   const [subFormTipoId, setSubFormTipoId] = useState('');
   const [subFormNome, setSubFormNome] = useState('');
   const [subFormLimite, setSubFormLimite] = useState('');
@@ -81,12 +76,12 @@ export default function FinanceiroMesDetalhe() {
     setNovaReceita({ descricao: '', valor: '' });
   };
 
-  const openGastoForm = (tipoId?: string, categoriaId?: string) => {
+  const openGastoSheet = (tipoId?: string, categoriaId?: string) => {
     setGastoFormTipoId(tipoId || '');
     setGastoFormCategoriaId(categoriaId || '');
     setGastoFormDescricao('');
     setGastoFormValor('');
-    setShowGastoForm(true);
+    setShowGastoSheet(true);
   };
 
   const handleAddGasto = () => {
@@ -97,14 +92,14 @@ export default function FinanceiroMesDetalhe() {
       tipo_id: gastoFormTipoId,
       categoria_id: gastoFormCategoriaId || null,
     });
-    setShowGastoForm(false);
+    setShowGastoSheet(false);
   };
 
-  const openSubForm = (tipoId: string) => {
-    setSubFormTipoId(tipoId);
+  const openSubDialog = (tipoId?: string) => {
+    setSubFormTipoId(tipoId || '');
     setSubFormNome('');
     setSubFormLimite('');
-    setShowSubForm(true);
+    setShowSubDialog(true);
   };
 
   const handleAddSubcategoria = () => {
@@ -115,7 +110,7 @@ export default function FinanceiroMesDetalhe() {
       limite_mensal: parseFloat(subFormLimite) || 0,
       ativa: true,
     });
-    setShowSubForm(false);
+    setShowSubDialog(false);
   };
 
   const handleConverterAporte = () => {
@@ -128,14 +123,14 @@ export default function FinanceiroMesDetalhe() {
     }
   };
 
-  // Group gastos by Macro (tipo), then by subcategoria within each macro
+  // Group gastos by Macro
   const gastosByMacro = () => {
     if (!gastos || !tiposAtivos) return [];
 
     const grouped: Record<string, {
       tipoId: string;
       tipoNome: string;
-      gastosDiretos: typeof gastos; // categoria_id is null
+      gastosDiretos: typeof gastos;
       subcategorias: Record<string, {
         categoriaId: string;
         categoriaNome: string;
@@ -144,7 +139,6 @@ export default function FinanceiroMesDetalhe() {
       }>;
     }> = {};
 
-    // Initialize with all active tipos
     for (const tipo of tiposAtivos) {
       grouped[tipo.id] = {
         tipoId: tipo.id,
@@ -169,10 +163,8 @@ export default function FinanceiroMesDetalhe() {
       }
 
       if (!g.categoria_id) {
-        // Direct macro gasto
         grouped[tipoId].gastosDiretos.push(g);
       } else {
-        // Subcategoria gasto
         if (!grouped[tipoId].subcategorias[g.categoria_id]) {
           const cat = categoriasAtivas.find(c => c.id === g.categoria_id);
           grouped[tipoId].subcategorias[g.categoria_id] = {
@@ -199,261 +191,210 @@ export default function FinanceiroMesDetalhe() {
     return diretos + subs;
   };
 
+  const getLancamentosCount = (macro: ReturnType<typeof gastosByMacro>[0]) => {
+    return macro.gastosDiretos.length + Object.values(macro.subcategorias).reduce((s, sub) => s + sub.gastos.length, 0);
+  };
+
   const subcategoriasForGastoForm = gastoFormTipoId ? getSubcategoriasByTipo(gastoFormTipoId) : [];
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => navigate('/financeiro')}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">{MESES[mes.mes - 1]} {mes.ano}</h1>
-            <p className="text-muted-foreground">Detalhes do mês</p>
-          </div>
+          <h1 className="text-xl font-semibold text-foreground">{MESES[mes.mes - 1]} {mes.ano}</h1>
         </div>
-        {saldoMes > 0 && (
-          <Button variant="outline" size="sm" onClick={handleConverterAporte}>
-            <ArrowRight className="h-4 w-4 mr-2" /> Converter saldo em aporte
+        <div className="flex items-center gap-2">
+          {saldoMes > 0 && (
+            <Button variant="ghost" size="sm" onClick={handleConverterAporte}>
+              <ArrowRight className="h-4 w-4 mr-1" /> Aporte
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={() => openSubDialog()}>
+            <Plus className="h-4 w-4 mr-1" /> Subcategoria
           </Button>
-        )}
+          <Button size="sm" onClick={() => openGastoSheet()}>
+            <Plus className="h-4 w-4 mr-1" /> Adicionar gasto
+          </Button>
+        </div>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-green-500" /> Receitas
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{formatCurrency(totalReceitas, 'BRL')}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <TrendingDown className="h-4 w-4 text-red-500" /> Gastos
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">{formatCurrency(totalGastos, 'BRL')}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Wallet className="h-4 w-4 text-primary" /> Saldo do Mês
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className={cn("text-2xl font-bold", saldoMes >= 0 ? "text-green-600" : "text-red-600")}>
-              {formatCurrency(saldoMes, 'BRL')}
-            </div>
-          </CardContent>
-        </Card>
+      {/* Summary row */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="rounded-lg border bg-card p-4">
+          <p className="text-xs text-muted-foreground mb-1">Receitas</p>
+          <p className="text-lg font-semibold text-green-600">{formatCurrency(totalReceitas, 'BRL')}</p>
+        </div>
+        <div className="rounded-lg border bg-card p-4">
+          <p className="text-xs text-muted-foreground mb-1">Gastos</p>
+          <p className="text-lg font-semibold text-red-600">{formatCurrency(totalGastos, 'BRL')}</p>
+        </div>
+        <div className="rounded-lg border bg-card p-4">
+          <p className="text-xs text-muted-foreground mb-1">Saldo</p>
+          <p className={cn("text-lg font-semibold", saldoMes >= 0 ? "text-green-600" : "text-red-600")}>
+            {formatCurrency(saldoMes, 'BRL')}
+          </p>
+        </div>
       </div>
 
-      {/* Limites por tipo */}
-      {gastosTipoComLimites.length > 0 && (
-        <TotaisPorTipoCardsComLimites gastosTipoComLimites={gastosTipoComLimites} />
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Receitas */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg text-green-600 flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" /> Receitas
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+      {/* Receitas section - compact */}
+      <Collapsible>
+        <CollapsibleTrigger asChild>
+          <button className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors w-full group">
+            <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]:rotate-180" />
+            <TrendingUp className="h-4 w-4 text-green-500" />
+            Receitas ({receitas?.length || 0})
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="pt-3">
+          <div className="space-y-3">
             <div className="flex gap-2">
-              <Input placeholder="Descrição" value={novaReceita.descricao} onChange={(e) => setNovaReceita({ ...novaReceita, descricao: e.target.value })} className="flex-1" />
-              <Input type="number" placeholder="Valor" value={novaReceita.valor} onChange={(e) => setNovaReceita({ ...novaReceita, valor: e.target.value })} className="w-28" step="0.01" />
-              <Button size="icon" onClick={handleAddReceita}><Plus className="h-4 w-4" /></Button>
+              <Input placeholder="Descrição" value={novaReceita.descricao} onChange={(e) => setNovaReceita({ ...novaReceita, descricao: e.target.value })} className="flex-1 h-9" />
+              <Input type="number" placeholder="Valor" value={novaReceita.valor} onChange={(e) => setNovaReceita({ ...novaReceita, valor: e.target.value })} className="w-28 h-9" step="0.01" />
+              <Button size="sm" onClick={handleAddReceita}><Plus className="h-4 w-4" /></Button>
             </div>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Descrição</TableHead>
-                  <TableHead className="text-right w-28">Valor</TableHead>
-                  <TableHead className="w-16"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {receitas?.map((r) => (
-                  <TableRow key={r.id}>
-                    <TableCell>{r.descricao}</TableCell>
-                    <TableCell className="text-right text-green-600">{formatCurrency(Number(r.valor), 'BRL')}</TableCell>
-                    <TableCell>
-                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => deleteReceita(r.id)}>
+            {receitas?.length ? (
+              <div className="space-y-1">
+                {receitas.map((r) => (
+                  <div key={r.id} className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-muted/50 group">
+                    <span className="text-sm">{r.descricao}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-green-600">{formatCurrency(Number(r.valor), 'BRL')}</span>
+                      <Button size="icon" variant="ghost" className="h-6 w-6 opacity-0 group-hover:opacity-100" onClick={() => deleteReceita(r.id)}>
                         <Trash2 className="h-3 w-3 text-destructive" />
                       </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {!receitas?.length && (
-                  <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground py-4">Nenhuma receita</TableCell></TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-
-        {/* Quick gasto button */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg text-red-600 flex items-center gap-2">
-              <TrendingDown className="h-5 w-5" /> Novo Gasto
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={() => openGastoForm()} className="w-full">
-              <Plus className="h-4 w-4 mr-2" /> Adicionar Gasto
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Gastos organized by Macro */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Gastos por Categoria Macro</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="text-center py-8 text-muted-foreground">Carregando...</div>
-          ) : !gastos?.length ? (
-            <div className="text-center py-8 text-muted-foreground">Nenhum gasto cadastrado neste mês.</div>
-          ) : (
-            <Accordion type="multiple" className="w-full">
-              {gastosByMacro().map((macro) => (
-                <AccordionItem key={macro.tipoId} value={macro.tipoId}>
-                  <AccordionTrigger className="text-base font-semibold">
-                    <span className="flex items-center gap-2">
-                      {macro.tipoNome}
-                      <Badge variant="secondary">
-                        {formatCurrency(getTotalMacro(macro), 'BRL')}
-                      </Badge>
-                    </span>
-                  </AccordionTrigger>
-                  <AccordionContent className="space-y-4 pl-2">
-                    {/* Action buttons */}
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" onClick={() => openGastoForm(macro.tipoId)}>
-                        <Plus className="h-3 w-3 mr-1" /> Gasto em {macro.tipoNome}
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => openSubForm(macro.tipoId)}>
-                        <Plus className="h-3 w-3 mr-1" /> Subcategoria
-                      </Button>
                     </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground py-2">Nenhuma receita</p>
+            )}
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
 
-                    {/* Direct gastos (sem subcategoria) */}
+      {/* Gastos by Macro - clean accordion */}
+      {isLoading ? (
+        <div className="text-center py-8 text-muted-foreground text-sm">Carregando...</div>
+      ) : !gastos?.length ? (
+        <div className="text-center py-8 text-muted-foreground text-sm">
+          Nenhum gasto cadastrado neste mês.
+        </div>
+      ) : (
+        <Accordion type="multiple" className="w-full space-y-1">
+          {gastosByMacro().map((macro) => {
+            const total = getTotalMacro(macro);
+            const count = getLancamentosCount(macro);
+            return (
+              <AccordionItem key={macro.tipoId} value={macro.tipoId} className="border rounded-lg px-3">
+                <AccordionTrigger className="py-3 hover:no-underline">
+                  <div className="flex items-center gap-3 text-sm">
+                    <span className="font-medium">{macro.tipoNome}</span>
+                    <Badge variant="secondary" className="font-normal text-xs">
+                      {formatCurrency(total, 'BRL')}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">{count} lançamento{count !== 1 ? 's' : ''}</span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="pb-3">
+                  <div className="space-y-3">
+                    {/* Quick action */}
+                    <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => openGastoSheet(macro.tipoId)}>
+                      <Plus className="h-3 w-3 mr-1" /> Gasto em {macro.tipoNome}
+                    </Button>
+
+                    {/* Direct gastos */}
                     {macro.gastosDiretos.length > 0 && (
                       <div>
-                        <h4 className="text-sm font-medium text-muted-foreground mb-2">Gastos diretos (sem subcategoria)</h4>
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Descrição</TableHead>
-                              <TableHead className="text-right w-28">Valor</TableHead>
-                              <TableHead className="w-16"></TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {macro.gastosDiretos.map((g) => (
-                              <TableRow key={g.id}>
-                                <TableCell>{g.descricao}</TableCell>
-                                <TableCell className="text-right text-red-600">{formatCurrency(Number(g.valor), 'BRL')}</TableCell>
-                                <TableCell>
-                                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => deleteGasto(g.id)}>
-                                    <Trash2 className="h-3 w-3 text-destructive" />
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
+                        <p className="text-xs text-muted-foreground mb-1.5">Diretos</p>
+                        <div className="space-y-0.5">
+                          {macro.gastosDiretos.map((g) => (
+                            <div key={g.id} className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-muted/50 group">
+                              <span className="text-sm">{g.descricao}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm text-red-600">{formatCurrency(Number(g.valor), 'BRL')}</span>
+                                <Button size="icon" variant="ghost" className="h-6 w-6 opacity-0 group-hover:opacity-100" onClick={() => deleteGasto(g.id)}>
+                                  <Trash2 className="h-3 w-3 text-destructive" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
 
-                    {/* Subcategorias */}
-                    {Object.values(macro.subcategorias).length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-medium text-muted-foreground mb-2">Subcategorias</h4>
-                        <Accordion type="multiple" className="w-full">
-                          {Object.values(macro.subcategorias).map((sub) => {
-                            const totalSub = sub.gastos.reduce((s, g) => s + Number(g.valor), 0);
-                            return (
-                              <AccordionItem key={sub.categoriaId} value={sub.categoriaId}>
-                                <AccordionTrigger className="text-sm">
-                                  <span className="flex items-center gap-2">
-                                    {sub.categoriaNome}
-                                    <Badge variant="outline" className="text-xs">
-                                      {formatCurrency(totalSub, 'BRL')}
-                                    </Badge>
-                                    {sub.limiteMensal > 0 && (
-                                      <Badge variant="secondary" className="text-xs">
-                                        Limite: {formatCurrency(sub.limiteMensal, 'BRL')}
-                                      </Badge>
-                                    )}
+                    {/* Subcategorias - collapsible inline */}
+                    {Object.values(macro.subcategorias).map((sub) => {
+                      const totalSub = sub.gastos.reduce((s, g) => s + Number(g.valor), 0);
+                      return (
+                        <Collapsible key={sub.categoriaId}>
+                          <div className="flex items-center justify-between">
+                            <CollapsibleTrigger asChild>
+                              <button className="flex items-center gap-2 text-sm hover:text-foreground transition-colors group py-1">
+                                <ChevronDown className="h-3 w-3 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+                                <span className="font-medium">{sub.categoriaNome}</span>
+                                <span className="text-xs text-muted-foreground">{formatCurrency(totalSub, 'BRL')}</span>
+                                {sub.limiteMensal > 0 && (
+                                  <span className={cn(
+                                    "text-xs",
+                                    totalSub > sub.limiteMensal ? "text-red-500" : "text-muted-foreground"
+                                  )}>
+                                    / {formatCurrency(sub.limiteMensal, 'BRL')}
                                   </span>
-                                </AccordionTrigger>
-                                <AccordionContent>
-                                  <div className="mb-2">
-                                    <Button variant="ghost" size="sm" onClick={() => openGastoForm(macro.tipoId, sub.categoriaId)}>
-                                      <Plus className="h-3 w-3 mr-1" /> Gasto em {sub.categoriaNome}
+                                )}
+                              </button>
+                            </CollapsibleTrigger>
+                            <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => openGastoSheet(macro.tipoId, sub.categoriaId)}>
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                          </div>
+                          <CollapsibleContent>
+                            <div className="ml-5 space-y-0.5 pt-1">
+                              {sub.gastos.map((g) => (
+                                <div key={g.id} className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-muted/50 group">
+                                  <span className="text-sm">{g.descricao}</span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm text-red-600">{formatCurrency(Number(g.valor), 'BRL')}</span>
+                                    <Button size="icon" variant="ghost" className="h-6 w-6 opacity-0 group-hover:opacity-100" onClick={() => deleteGasto(g.id)}>
+                                      <Trash2 className="h-3 w-3 text-destructive" />
                                     </Button>
                                   </div>
-                                  <Table>
-                                    <TableHeader>
-                                      <TableRow>
-                                        <TableHead>Descrição</TableHead>
-                                        <TableHead className="text-right w-28">Valor</TableHead>
-                                        <TableHead className="w-16"></TableHead>
-                                      </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                      {sub.gastos.map((g) => (
-                                        <TableRow key={g.id}>
-                                          <TableCell>{g.descricao}</TableCell>
-                                          <TableCell className="text-right text-red-600">{formatCurrency(Number(g.valor), 'BRL')}</TableCell>
-                                          <TableCell>
-                                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => deleteGasto(g.id)}>
-                                              <Trash2 className="h-3 w-3 text-destructive" />
-                                            </Button>
-                                          </TableCell>
-                                        </TableRow>
-                                      ))}
-                                    </TableBody>
-                                  </Table>
-                                </AccordionContent>
-                              </AccordionItem>
-                            );
-                          })}
-                        </Accordion>
-                      </div>
-                    )}
-                  </AccordionContent>
-                </AccordionItem>
-              ))}
-            </Accordion>
-          )}
-        </CardContent>
-      </Card>
+                                </div>
+                              ))}
+                            </div>
+                          </CollapsibleContent>
+                        </Collapsible>
+                      );
+                    })}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            );
+          })}
+        </Accordion>
+      )}
 
-      {/* Dialog: Novo gasto */}
-      <Dialog open={showGastoForm} onOpenChange={(o) => !o && setShowGastoForm(false)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Novo Gasto</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 pt-4">
+      {/* Sheet: Novo gasto */}
+      <Sheet open={showGastoSheet} onOpenChange={setShowGastoSheet}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Novo Gasto</SheetTitle>
+          </SheetHeader>
+          <div className="space-y-4 pt-6">
             <div className="space-y-2">
-              <Label>Categoria Macro *</Label>
+              <Label>Descrição</Label>
+              <Input value={gastoFormDescricao} onChange={(e) => setGastoFormDescricao(e.target.value)} placeholder="Descrição do gasto" />
+            </div>
+            <div className="space-y-2">
+              <Label>Valor (R$)</Label>
+              <Input type="number" value={gastoFormValor} onChange={(e) => setGastoFormValor(e.target.value)} placeholder="0,00" step="0.01" />
+            </div>
+            <div className="space-y-2">
+              <Label>Macro</Label>
               <Select value={gastoFormTipoId} onValueChange={(v) => { setGastoFormTipoId(v); setGastoFormCategoriaId(''); }}>
                 <SelectTrigger><SelectValue placeholder="Selecione a macro" /></SelectTrigger>
                 <SelectContent>
@@ -465,11 +406,11 @@ export default function FinanceiroMesDetalhe() {
             </div>
             {gastoFormTipoId && subcategoriasForGastoForm.length > 0 && (
               <div className="space-y-2">
-                <Label>Subcategoria (opcional)</Label>
+                <Label>Subcategoria</Label>
                 <Select value={gastoFormCategoriaId} onValueChange={setGastoFormCategoriaId}>
-                  <SelectTrigger><SelectValue placeholder="Nenhuma (gasto direto)" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Nenhuma" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Nenhuma (gasto direto)</SelectItem>
+                    <SelectItem value="">Nenhuma</SelectItem>
                     {subcategoriasForGastoForm.map((cat) => (
                       <SelectItem key={cat.id} value={cat.id}>{cat.nome}</SelectItem>
                     ))}
@@ -477,42 +418,44 @@ export default function FinanceiroMesDetalhe() {
                 </Select>
               </div>
             )}
-            <div className="space-y-2">
-              <Label>Descrição *</Label>
-              <Input value={gastoFormDescricao} onChange={(e) => setGastoFormDescricao(e.target.value)} placeholder="Descrição do gasto" />
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" className="flex-1" onClick={() => setShowGastoSheet(false)}>Cancelar</Button>
+              <Button className="flex-1" onClick={handleAddGasto} disabled={!gastoFormTipoId || !gastoFormDescricao || !gastoFormValor}>
+                Salvar
+              </Button>
             </div>
-            <div className="space-y-2">
-              <Label>Valor (R$) *</Label>
-              <Input type="number" value={gastoFormValor} onChange={(e) => setGastoFormValor(e.target.value)} placeholder="0,00" step="0.01" />
-            </div>
-            <Button onClick={handleAddGasto} className="w-full" disabled={!gastoFormTipoId || !gastoFormDescricao || !gastoFormValor}>
-              Adicionar Gasto
-            </Button>
           </div>
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
 
       {/* Dialog: Nova subcategoria */}
-      <Dialog open={showSubForm} onOpenChange={(o) => !o && setShowSubForm(false)}>
+      <Dialog open={showSubDialog} onOpenChange={setShowSubDialog}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Nova Subcategoria</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-4">
-            <div className="p-3 bg-muted rounded-lg text-sm">
-              <p className="text-muted-foreground">Macro:</p>
-              <p className="font-medium">{tiposAtivos.find(t => t.id === subFormTipoId)?.nome}</p>
+            <div className="space-y-2">
+              <Label>Macro</Label>
+              <Select value={subFormTipoId} onValueChange={setSubFormTipoId}>
+                <SelectTrigger><SelectValue placeholder="Selecione a macro" /></SelectTrigger>
+                <SelectContent>
+                  {tiposAtivos.map((tipo) => (
+                    <SelectItem key={tipo.id} value={tipo.id}>{tipo.nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label>Nome</Label>
-              <Input value={subFormNome} onChange={(e) => setSubFormNome(e.target.value)} placeholder="Ex: Parcela do carro" />
+              <Input value={subFormNome} onChange={(e) => setSubFormNome(e.target.value)} placeholder="Ex: Carro, Farmácia" />
             </div>
             <div className="space-y-2">
-              <Label>Limite Mensal (R$, opcional)</Label>
+              <Label>Limite mensal (opcional)</Label>
               <Input type="number" value={subFormLimite} onChange={(e) => setSubFormLimite(e.target.value)} placeholder="0,00" step="0.01" />
             </div>
-            <Button onClick={handleAddSubcategoria} className="w-full" disabled={!subFormNome.trim()}>
-              Criar Subcategoria
+            <Button onClick={handleAddSubcategoria} className="w-full" disabled={!subFormNome.trim() || !subFormTipoId}>
+              Criar
             </Button>
           </div>
         </DialogContent>
