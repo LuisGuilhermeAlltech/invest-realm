@@ -24,6 +24,7 @@ import EvolucaoPatrimonial from "@/pages/EvolucaoPatrimonial";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
+const routerBase = import.meta.env.BASE_URL.replace(/\/$/, "") || "/";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -64,7 +65,7 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <BrowserRouter>
+        <BrowserRouter basename={routerBase}>
           <AppRoutes />
         </BrowserRouter>
       </TooltipProvider>
