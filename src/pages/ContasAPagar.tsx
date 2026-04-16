@@ -195,7 +195,7 @@ export default function ContasAPagar() {
 
   return (
     <div className="space-y-6">
-      {/* Panorama de Dívidas (Global) */}
+      {/* Evolução mensal das dívidas (início do mês) */}
       <DebtPanoramaBlock />
 
       {/* Header */}

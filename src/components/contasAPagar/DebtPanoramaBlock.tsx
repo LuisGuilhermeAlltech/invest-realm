@@ -1,203 +1,175 @@
-import { useContasTotais } from '@/hooks/useContasTotais';
 import { usePanoramaMensal } from '@/hooks/usePanoramaMensal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { formatCurrency } from '@/lib/formatters';
 import {
-  CreditCard,
+  BarChart3,
   TrendingUp,
   TrendingDown,
   Minus,
-  Info,
-  BarChart3,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   ResponsiveContainer,
-  AreaChart,
-  Area,
+  BarChart,
+  Bar,
+  Cell,
+  ReferenceLine,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip as RechartsTooltip,
 } from 'recharts';
 
-const MiniTooltip = ({ active, payload, label }: any) => {
-  if (!active || !payload) return null;
+interface MiniTooltipProps {
+  active?: boolean;
+  payload?: Array<{
+    payload: {
+      label: string;
+      dividaInicioTotal: number;
+      variacaoMensal: number;
+      dividaSaldo: number;
+      dividaParcelada: number;
+      dividaCartao: number;
+      temBaseComparativa: boolean;
+    };
+  }>;
+  label?: string;
+}
+
+const MiniTooltip = ({ active, payload, label }: MiniTooltipProps) => {
+  if (!active || !payload?.length) return null;
+  const point = payload[0].payload;
+  const variacao = point.variacaoMensal;
+
   return (
     <div className="bg-card border border-border rounded-lg p-2 shadow-md text-xs">
       <p className="font-medium text-foreground mb-1">{label}</p>
-      {payload.map((entry: any, idx: number) => (
-        <p key={idx} style={{ color: entry.color }}>
-          {entry.name}: {formatCurrency(entry.value)}
+      <p className="text-muted-foreground">
+        Dívida no início: {formatCurrency(point.dividaInicioTotal)}
+      </p>
+      <p className="text-muted-foreground">
+        Saldo: {formatCurrency(point.dividaSaldo)} | Parceladas: {formatCurrency(point.dividaParcelada)}
+      </p>
+      <p className="text-muted-foreground mb-1">
+        Cartão à vista: {formatCurrency(point.dividaCartao)}
+      </p>
+      {point.temBaseComparativa ? (
+        <p className={cn(
+          'font-medium',
+          variacao > 0 ? 'text-positive' : variacao < 0 ? 'text-negative' : 'text-muted-foreground'
+        )}>
+          Evolução: {variacao > 0 ? '+' : ''}{formatCurrency(variacao)}
         </p>
-      ))}
+      ) : (
+        <p className="text-muted-foreground">Sem base de comparação</p>
+      )}
     </div>
   );
 };
 
 export function DebtPanoramaBlock() {
-  const { parcelasEmAberto, creditoVista, dividaTotal, isLoading: contasLoading } = useContasTotais();
-  const { months, lastMonth, prevMonth, varDivida, isLoading: panoramaLoading } = usePanoramaMensal();
-
-  const isLoading = contasLoading || panoramaLoading;
+  const { months, lastMonth, isLoading } = usePanoramaMensal();
 
   if (isLoading) {
     return (
       <Card className="border-border">
         <CardContent className="py-8">
-          <div className="text-muted-foreground text-sm text-center">Carregando panorama...</div>
+          <div className="text-muted-foreground text-sm text-center">Carregando evolução mensal...</div>
         </CardContent>
       </Card>
     );
   }
 
-  // Build debt trend data from monthly panorama
-  const debtChartData = months.slice(-12).map(m => ({
-    label: m.label,
-    dividaTotal: m.dividaTotal,
-  }));
+  const debtChartData = months.slice(-12).map((m) => {
+    const variacao = m.variacaoAbsoluta ?? 0;
+    return {
+      ...m,
+      variacaoMensal: variacao,
+      label: m.label,
+      temBaseComparativa: m.variacaoAbsoluta !== null,
+      fill:
+        variacao > 0
+          ? 'hsl(var(--positive))'
+          : variacao < 0
+            ? 'hsl(var(--negative))'
+            : 'hsl(var(--muted-foreground))',
+    };
+  });
 
-  // Calculate streak (consecutive months of growth or reduction)
-  let streak = 0;
-  let streakDirection: 'up' | 'down' | 'stable' = 'stable';
-  if (months.length >= 2) {
-    // Check from the end backwards
-    for (let i = months.length - 1; i >= 1; i--) {
-      const curr = months[i].dividaTotal;
-      const prev = months[i - 1].dividaTotal;
-      if (i === months.length - 1) {
-        if (curr > prev) {
-          streakDirection = 'up';
-          streak = 1;
-        } else if (curr < prev) {
-          streakDirection = 'down';
-          streak = 1;
-        } else {
-          break;
-        }
-      } else {
-        if (streakDirection === 'up' && curr > prev) {
-          streak++;
-        } else if (streakDirection === 'down' && curr < prev) {
-          streak++;
-        } else {
-          break;
-        }
-      }
-    }
-  }
-
-  // Variation
-  const varAbsolute = lastMonth && prevMonth
-    ? lastMonth.dividaTotal - prevMonth.dividaTotal
-    : null;
-
-  const formatVar = (v: number | null) => {
-    if (v === null) return '—';
-    const sign = v > 0 ? '+' : '';
-    return `${sign}${(v * 100).toFixed(1)}%`;
-  };
+  const hasComparativeData = debtChartData.some((point) => point.temBaseComparativa);
+  const variacaoAtual = lastMonth?.variacaoAbsoluta ?? null;
+  const variacaoPercentualAtual = lastMonth?.variacaoPercentual ?? null;
 
   return (
     <Card className="border-border">
       <CardHeader className="pb-3">
         <CardTitle className="text-lg flex items-center gap-2">
-          <BarChart3 className="h-5 w-5 text-negative" />
-          Panorama de Dívidas (Global)
+          <BarChart3 className="h-5 w-5 text-primary" />
+          Evolução Mensal das Contas a Pagar
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Main metrics row */}
-        <div className="grid gap-4 md:grid-cols-3">
-          {/* Dívida Total Atual */}
+        <p className="text-xs text-muted-foreground">
+          Referência: saldo no início de cada mês (contas saldo + parceladas + cartão à vista).
+        </p>
+
+        <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-1">
-            <div className="flex items-center gap-1">
-              <span className="text-sm font-medium text-muted-foreground">Dívida Total Atual</span>
-              <Tooltip>
-                <TooltipTrigger>
-                  <Info className="h-3 w-3 text-muted-foreground" />
-                </TooltipTrigger>
-                <TooltipContent className="max-w-xs">
-                  <p className="text-sm">Saldo Parcelado Oficial + Cartão à Vista não incluído em fatura</p>
-                </TooltipContent>
-              </Tooltip>
-            </div>
-            <div className="text-2xl font-bold font-mono text-negative">
-              {formatCurrency(dividaTotal)}
+            <span className="text-sm font-medium text-muted-foreground">Dívida no Início do Mês Atual</span>
+            <div className="text-2xl font-bold font-mono text-foreground">
+              {lastMonth ? formatCurrency(lastMonth.dividaInicioTotal) : '—'}
             </div>
             <p className="text-xs text-muted-foreground">
-              Parceladas: {formatCurrency(parcelasEmAberto)} | Cartão: {formatCurrency(creditoVista)}
+              {lastMonth
+                ? `Saldo: ${formatCurrency(lastMonth.dividaSaldo)} | Parceladas: ${formatCurrency(lastMonth.dividaParcelada)} | Cartão: ${formatCurrency(lastMonth.dividaCartao)}`
+                : 'Sem dados suficientes'}
             </p>
           </div>
 
-          {/* Variação vs mês anterior */}
           <div className="space-y-1">
-            <span className="text-sm font-medium text-muted-foreground">Variação vs Mês Anterior</span>
-            {varAbsolute !== null && varDivida !== null ? (
+            <span className="text-sm font-medium text-muted-foreground">Evolução vs Mês Anterior</span>
+            {variacaoAtual !== null ? (
               <>
                 <div className={cn(
-                  "text-xl font-bold font-mono flex items-center gap-2",
-                  varAbsolute > 0 ? "text-negative" : varAbsolute < 0 ? "text-positive" : "text-muted-foreground"
+                  'text-xl font-bold font-mono flex items-center gap-2',
+                  variacaoAtual > 0
+                    ? 'text-positive'
+                    : variacaoAtual < 0
+                      ? 'text-negative'
+                      : 'text-muted-foreground'
                 )}>
-                  {varAbsolute > 0 ? (
+                  {variacaoAtual > 0 ? (
                     <TrendingUp className="h-5 w-5" />
-                  ) : varAbsolute < 0 ? (
+                  ) : variacaoAtual < 0 ? (
                     <TrendingDown className="h-5 w-5" />
                   ) : (
                     <Minus className="h-5 w-5" />
                   )}
-                  {varAbsolute > 0 ? '+' : ''}{formatCurrency(varAbsolute)}
+                  {variacaoAtual > 0 ? '+' : ''}{formatCurrency(variacaoAtual)}
                 </div>
                 <p className={cn(
-                  "text-xs font-medium",
-                  varDivida > 0 ? "text-negative" : varDivida < 0 ? "text-positive" : "text-muted-foreground"
+                  'text-xs font-medium',
+                  variacaoAtual > 0
+                    ? 'text-positive'
+                    : variacaoAtual < 0
+                      ? 'text-negative'
+                      : 'text-muted-foreground'
                 )}>
-                  {formatVar(varDivida)}
+                  {variacaoPercentualAtual !== null
+                    ? `${variacaoPercentualAtual > 0 ? '+' : ''}${(variacaoPercentualAtual * 100).toFixed(1)}%`
+                    : 'Sem percentual calculável'}
                 </p>
               </>
             ) : (
-              <p className="text-sm text-muted-foreground">Sem dados do mês anterior</p>
-            )}
-          </div>
-
-          {/* Sequência */}
-          <div className="space-y-1">
-            <span className="text-sm font-medium text-muted-foreground">Tendência</span>
-            {streak > 0 ? (
-              <>
-                <div className={cn(
-                  "text-lg font-bold flex items-center gap-2",
-                  streakDirection === 'up' ? "text-negative" : "text-positive"
-                )}>
-                  {streakDirection === 'up' ? (
-                    <TrendingUp className="h-5 w-5" />
-                  ) : (
-                    <TrendingDown className="h-5 w-5" />
-                  )}
-                  {streakDirection === 'up' ? 'Em alta' : 'Em queda'} há {streak} {streak === 1 ? 'mês' : 'meses'}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {streakDirection === 'up' ? '⚠️ Atenção à tendência de crescimento' : '✅ Tendência positiva de redução'}
-                </p>
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground">Estável ou sem histórico suficiente</p>
+              <p className="text-sm text-muted-foreground">Sem mês anterior para comparar.</p>
             )}
           </div>
         </div>
 
-        {/* Mini debt chart */}
-        {debtChartData.length > 1 && (
+        {hasComparativeData ? (
           <div className="h-[180px] w-full pt-2">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={debtChartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-                <defs>
-                  <linearGradient id="debtGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(0, 72%, 51%)" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="hsl(0, 72%, 51%)" stopOpacity={0.05} />
-                  </linearGradient>
-                </defs>
+              <BarChart data={debtChartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis
                   dataKey="label"
@@ -205,31 +177,30 @@ export function DebtPanoramaBlock() {
                   className="text-muted-foreground"
                 />
                 <YAxis
-                  tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+                  tickFormatter={(v) => formatCurrency(Number(v))}
                   tick={{ fontSize: 10 }}
                   className="text-muted-foreground"
-                  width={50}
+                  width={80}
                 />
                 <RechartsTooltip content={<MiniTooltip />} />
-                <Area
-                  type="monotone"
-                  dataKey="dividaTotal"
-                  name="Dívida Total"
-                  stroke="hsl(0, 72%, 51%)"
-                  strokeWidth={2}
-                  fill="url(#debtGradient)"
-                  dot={{ r: 3, fill: 'hsl(0, 72%, 51%)' }}
-                />
-              </AreaChart>
+                <ReferenceLine y={0} stroke="hsl(var(--border))" />
+                <Bar dataKey="variacaoMensal" name="Evolução Mensal" radius={[4, 4, 0, 0]}>
+                  {debtChartData.map((entry) => (
+                    <Cell key={entry.label} fill={entry.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
             </ResponsiveContainer>
           </div>
-        )}
-
-        {debtChartData.length <= 1 && (
+        ) : (
           <p className="text-xs text-muted-foreground italic">
-            Sem histórico completo para exibir gráfico de tendência.
+            Sem histórico suficiente para exibir variação mensal.
           </p>
         )}
+
+        <p className="text-xs text-muted-foreground">
+          Verde = redução de dívida no mês. Vermelho = aumento da dívida no mês.
+        </p>
       </CardContent>
     </Card>
   );
