@@ -108,6 +108,28 @@ function sortMovimentacoesAsc(movA: MovimentacaoSaldo, movB: MovimentacaoSaldo):
   return (movA.created_at || '').localeCompare(movB.created_at || '');
 }
 
+function getErrorText(error: unknown): string {
+  if (!error) return '';
+  if (typeof error === 'string') return error;
+  if (error instanceof Error) return error.message;
+
+  if (typeof error === 'object') {
+    const maybeError = error as { message?: string; details?: string; hint?: string };
+    return [maybeError.message, maybeError.details, maybeError.hint].filter(Boolean).join(' | ');
+  }
+
+  return '';
+}
+
+function isMissingMovimentacaoColumnError(error: unknown): boolean {
+  const errorText = getErrorText(error).toLowerCase();
+  return (
+    errorText.includes('contas_saldo_movimentacoes')
+    && errorText.includes('column')
+    && errorText.includes('does not exist')
+  );
+}
+
 export function useContasAPagar() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -363,24 +385,45 @@ export function useContasAPagar() {
       }
 
       const dataMovimentacao = data || format(new Date(), 'yyyy-MM-dd');
+      const valorMovimentacao = tipo === 'ajuste' ? Math.abs(saldoResultante - saldoAnterior) : valor;
 
-      const { error: movError } = await supabase
+      const payloadMovimentacao = {
+        user_id: user.id,
+        conta_pagar_id: contaId,
+        data: dataMovimentacao,
+        tipo_movimentacao: tipo,
+        valor: valorMovimentacao,
+        saldo_anterior: saldoAnterior,
+        saldo_resultante: saldoResultante,
+        observacao: observacao || null,
+        empresa_origem: empresaOrigem || null,
+        empresa_destino: empresaDestino || null,
+        conta_saida: contaSaida || null,
+        conta_entrada: contaEntrada || null,
+        comprovante_url: comprovanteUrl || null,
+      };
+
+      let { error: movError } = await supabase
         .from('contas_saldo_movimentacoes')
-        .insert({
-          user_id: user.id,
-          conta_pagar_id: contaId,
-          data: dataMovimentacao,
-          tipo_movimentacao: tipo,
-          valor: tipo === 'ajuste' ? Math.abs(saldoResultante - saldoAnterior) : valor,
-          saldo_anterior: saldoAnterior,
-          saldo_resultante: saldoResultante,
-          observacao: observacao || null,
-          empresa_origem: empresaOrigem || null,
-          empresa_destino: empresaDestino || null,
-          conta_saida: contaSaida || null,
-          conta_entrada: contaEntrada || null,
-          comprovante_url: comprovanteUrl || null,
-        });
+        .insert(payloadMovimentacao);
+
+      // Compatibilidade com bancos que ainda não receberam a migração de colunas extras.
+      if (movError && isMissingMovimentacaoColumnError(movError)) {
+        const { error: fallbackError } = await supabase
+          .from('contas_saldo_movimentacoes')
+          .insert({
+            user_id: user.id,
+            conta_pagar_id: contaId,
+            data: dataMovimentacao,
+            tipo_movimentacao: tipo,
+            valor: valorMovimentacao,
+            saldo_anterior: saldoAnterior,
+            saldo_resultante: saldoResultante,
+            observacao: observacao || null,
+          });
+
+        movError = fallbackError;
+      }
 
       if (movError) throw movError;
 
@@ -441,7 +484,13 @@ export function useContasAPagar() {
     },
     onError: (mutationError) => {
       console.error('Erro ao registrar movimentação:', mutationError);
-      toast.error('Erro ao registrar movimentação');
+      if (isMissingMovimentacaoColumnError(mutationError)) {
+        toast.error('Erro ao registrar movimentação: banco desatualizado. Execute a migração de contas saldo.');
+        return;
+      }
+
+      const errorText = getErrorText(mutationError);
+      toast.error(errorText ? `Erro ao registrar movimentação: ${errorText}` : 'Erro ao registrar movimentação');
     },
   });
 

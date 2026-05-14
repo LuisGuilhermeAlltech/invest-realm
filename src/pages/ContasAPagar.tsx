@@ -276,6 +276,7 @@ export default function ContasAPagar() {
                 onDefinirMetaMensal={definirMetaMensalSaldo}
                 onDefinirSaldoInicialMensal={definirSaldoInicialMensal}
                 getResumoMensalConta={getResumoMensalContaSaldo}
+                getMovimentacoesConta={getMovimentacoesConta}
                 isQuiting={isQuiting}
                 isRegistrandoMovimentacao={isRegistrandoMovimentacao}
                 isDefinindoMetaMensal={isDefinindoMetaMensal}

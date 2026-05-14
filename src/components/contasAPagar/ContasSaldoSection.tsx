@@ -42,6 +42,7 @@ import {
 } from 'lucide-react';
 import {
   ContaAPagarComCalculos,
+  MovimentacaoSaldo,
   StatusContaAPagar,
   TipoContaAPagar,
   TipoMovimentacaoSaldo,
@@ -86,6 +87,7 @@ interface ContasSaldoSectionProps {
     ano: number,
     mes: number,
   ) => ContaSaldoResumoMensalDetalhado | null;
+  getMovimentacoesConta: (contaId: string) => MovimentacaoSaldo[];
   isQuiting?: boolean;
   isRegistrandoMovimentacao?: boolean;
   isDefinindoMetaMensal?: boolean;
@@ -112,6 +114,7 @@ const MESES = [
 ];
 
 const NOME_DEVEDORA_EXIBICAO = 'Guilherme';
+const SELECT_EMPTY_VALUE = '__none__';
 
 function getCompetencia(ano: number, mes: number): string {
   return `${ano}-${String(mes).padStart(2, '0')}-01`;
@@ -138,6 +141,7 @@ export function ContasSaldoSection({
   onDefinirMetaMensal,
   onDefinirSaldoInicialMensal,
   getResumoMensalConta,
+  getMovimentacoesConta,
   isQuiting = false,
   isRegistrandoMovimentacao = false,
   isDefinindoMetaMensal = false,
@@ -189,6 +193,88 @@ export function ContasSaldoSection({
     return getResumoMensalConta(contaSelecionada.id, ano, mes);
   }, [contaSelecionada, getResumoMensalConta, ano, mes]);
 
+  const movimentacoesConta = useMemo(() => {
+    if (!contaSelecionada) return [];
+    return getMovimentacoesConta(contaSelecionada.id);
+  }, [contaSelecionada, getMovimentacoesConta]);
+
+  const empresasLancamentoDisponiveis = useMemo(() => {
+    const empresas = new Set<string>();
+
+    if (contaSelecionada) {
+      if (contaSelecionada.instituicao) {
+        empresas.add(contaSelecionada.instituicao);
+      }
+      empresas.add(NOME_DEVEDORA_EXIBICAO);
+      if (contaSelecionada.descricao) {
+        empresas.add(contaSelecionada.descricao);
+      }
+    }
+
+    movimentacoesConta.forEach((mov) => {
+      if (mov.empresa_origem?.trim()) {
+        empresas.add(mov.empresa_origem.trim());
+      }
+      if (mov.empresa_destino?.trim()) {
+        empresas.add(mov.empresa_destino.trim());
+      }
+    });
+
+    return Array.from(empresas).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [contaSelecionada, movimentacoesConta]);
+
+  const opcoesContaSaida = useMemo(() => {
+    const contasSaida = new Set<string>();
+    const empresaSelecionada = lancamentoEmpresaOrigem.trim();
+
+    movimentacoesConta.forEach((mov) => {
+      const conta = mov.conta_saida?.trim();
+      if (!conta) return;
+
+      const mesmaEmpresa = !empresaSelecionada || (mov.empresa_origem || '').trim() === empresaSelecionada;
+      if (mesmaEmpresa) {
+        contasSaida.add(conta);
+      }
+    });
+
+    if (contasSaida.size === 0) {
+      movimentacoesConta.forEach((mov) => {
+        const conta = mov.conta_saida?.trim();
+        if (conta) {
+          contasSaida.add(conta);
+        }
+      });
+    }
+
+    return Array.from(contasSaida).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [movimentacoesConta, lancamentoEmpresaOrigem]);
+
+  const opcoesContaEntrada = useMemo(() => {
+    const contasEntrada = new Set<string>();
+    const empresaSelecionada = lancamentoEmpresaDestino.trim();
+
+    movimentacoesConta.forEach((mov) => {
+      const conta = mov.conta_entrada?.trim();
+      if (!conta) return;
+
+      const mesmaEmpresa = !empresaSelecionada || (mov.empresa_destino || '').trim() === empresaSelecionada;
+      if (mesmaEmpresa) {
+        contasEntrada.add(conta);
+      }
+    });
+
+    if (contasEntrada.size === 0) {
+      movimentacoesConta.forEach((mov) => {
+        const conta = mov.conta_entrada?.trim();
+        if (conta) {
+          contasEntrada.add(conta);
+        }
+      });
+    }
+
+    return Array.from(contasEntrada).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [movimentacoesConta, lancamentoEmpresaDestino]);
+
   useEffect(() => {
     if (!contaSelecionada || !resumoMensal) return;
 
@@ -198,6 +284,20 @@ export function ContasSaldoSection({
     );
     setSaldoInicialValor(resumoMensal.saldoInicial.toString());
   }, [contaSelecionada, resumoMensal]);
+
+  useEffect(() => {
+    if (!lancamentoContaSaida) return;
+    if (!opcoesContaSaida.includes(lancamentoContaSaida)) {
+      setLancamentoContaSaida('');
+    }
+  }, [lancamentoContaSaida, opcoesContaSaida]);
+
+  useEffect(() => {
+    if (!lancamentoContaEntrada) return;
+    if (!opcoesContaEntrada.includes(lancamentoContaEntrada)) {
+      setLancamentoContaEntrada('');
+    }
+  }, [lancamentoContaEntrada, opcoesContaEntrada]);
 
   if (contas.length === 0 || !contaSelecionada) {
     return (
@@ -261,6 +361,8 @@ export function ContasSaldoSection({
 
     const valor = Number(lancamentoValor);
     if (!valor || valor <= 0) return;
+    if (!lancamentoEmpresaOrigem || !lancamentoEmpresaDestino) return;
+    if (!lancamentoContaSaida || !lancamentoContaEntrada) return;
 
     onRegistrarMovimentacao({
       contaId: contaSelecionada.id,
@@ -284,6 +386,12 @@ export function ContasSaldoSection({
   };
 
   const anosDisponiveis = Array.from({ length: 6 }, (_, i) => hoje.getFullYear() - 3 + i);
+  const podeSalvarLancamento =
+    Number(lancamentoValor) > 0 &&
+    !!lancamentoEmpresaOrigem &&
+    !!lancamentoEmpresaDestino &&
+    !!lancamentoContaSaida &&
+    !!lancamentoContaEntrada;
 
   return (
     <div className="space-y-6">
@@ -669,38 +777,82 @@ export function ContasSaldoSection({
 
             <div className="space-y-2">
               <Label>Empresa Origem</Label>
-              <Input
-                value={lancamentoEmpresaOrigem}
-                onChange={(e) => setLancamentoEmpresaOrigem(e.target.value)}
-                placeholder="Selecione"
-              />
+              <Select
+                value={lancamentoEmpresaOrigem || SELECT_EMPTY_VALUE}
+                onValueChange={(value) => setLancamentoEmpresaOrigem(value === SELECT_EMPTY_VALUE ? '' : value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a empresa de origem" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={SELECT_EMPTY_VALUE}>Selecione</SelectItem>
+                  {empresasLancamentoDisponiveis.map((empresa) => (
+                    <SelectItem key={`origem-${empresa}`} value={empresa}>
+                      {empresa}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
               <Label>Empresa Destino</Label>
-              <Input
-                value={lancamentoEmpresaDestino}
-                onChange={(e) => setLancamentoEmpresaDestino(e.target.value)}
-                placeholder="Selecione"
-              />
+              <Select
+                value={lancamentoEmpresaDestino || SELECT_EMPTY_VALUE}
+                onValueChange={(value) => setLancamentoEmpresaDestino(value === SELECT_EMPTY_VALUE ? '' : value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a empresa de destino" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={SELECT_EMPTY_VALUE}>Selecione</SelectItem>
+                  {empresasLancamentoDisponiveis.map((empresa) => (
+                    <SelectItem key={`destino-${empresa}`} value={empresa}>
+                      {empresa}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
               <Label>Conta de Saída (Origem)</Label>
-              <Input
-                value={lancamentoContaSaida}
-                onChange={(e) => setLancamentoContaSaida(e.target.value)}
-                placeholder="Ex: Bradesco • Ag 1234 • CC 56789-0"
-              />
+              <Select
+                value={lancamentoContaSaida || SELECT_EMPTY_VALUE}
+                onValueChange={(value) => setLancamentoContaSaida(value === SELECT_EMPTY_VALUE ? '' : value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a conta de saída" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={SELECT_EMPTY_VALUE}>Selecione</SelectItem>
+                  {opcoesContaSaida.map((conta) => (
+                    <SelectItem key={`saida-${conta}`} value={conta}>
+                      {conta}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
               <Label>Conta de Entrada (Destino)</Label>
-              <Input
-                value={lancamentoContaEntrada}
-                onChange={(e) => setLancamentoContaEntrada(e.target.value)}
-                placeholder="Ex: Nubank • PIX CNPJ"
-              />
+              <Select
+                value={lancamentoContaEntrada || SELECT_EMPTY_VALUE}
+                onValueChange={(value) => setLancamentoContaEntrada(value === SELECT_EMPTY_VALUE ? '' : value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a conta de entrada" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={SELECT_EMPTY_VALUE}>Selecione</SelectItem>
+                  {opcoesContaEntrada.map((conta) => (
+                    <SelectItem key={`entrada-${conta}`} value={conta}>
+                      {conta}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="md:col-span-2 space-y-2">
@@ -726,7 +878,7 @@ export function ContasSaldoSection({
             <Button variant="outline" onClick={() => setNovoLancamentoOpen(false)}>
               Cancelar
             </Button>
-            <Button disabled={isRegistrandoMovimentacao} onClick={handleSalvarLancamento}>
+            <Button disabled={isRegistrandoMovimentacao || !podeSalvarLancamento} onClick={handleSalvarLancamento}>
               {isRegistrandoMovimentacao ? 'Salvando...' : 'Salvar'}
             </Button>
           </DialogFooter>
