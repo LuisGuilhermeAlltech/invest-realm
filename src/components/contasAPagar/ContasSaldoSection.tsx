@@ -111,6 +111,8 @@ const MESES = [
   'Dezembro',
 ];
 
+const NOME_DEVEDORA_EXIBICAO = 'Guilherme';
+
 function getCompetencia(ano: number, mes: number): string {
   return `${ano}-${String(mes).padStart(2, '0')}-01`;
 }
@@ -191,7 +193,9 @@ export function ContasSaldoSection({
     if (!contaSelecionada || !resumoMensal) return;
 
     setLancamentoEmpresaOrigem(resumoMensal.movimentacoesMes[0]?.empresa_origem || contaSelecionada.instituicao);
-    setLancamentoEmpresaDestino(resumoMensal.movimentacoesMes[0]?.empresa_destino || contaSelecionada.descricao);
+    setLancamentoEmpresaDestino(
+      resumoMensal.movimentacoesMes[0]?.empresa_destino || NOME_DEVEDORA_EXIBICAO,
+    );
     setSaldoInicialValor(resumoMensal.saldoInicial.toString());
   }, [contaSelecionada, resumoMensal]);
 
@@ -327,7 +331,7 @@ export function ContasSaldoSection({
                   const conta = contas.find((item) => item.id === id);
                   if (conta) {
                     setLancamentoEmpresaOrigem(conta.instituicao);
-                    setLancamentoEmpresaDestino(conta.descricao);
+                    setLancamentoEmpresaDestino(NOME_DEVEDORA_EXIBICAO);
                   }
                 }}
               >
@@ -353,7 +357,7 @@ export function ContasSaldoSection({
                 <SelectContent>
                   {contas.map((conta) => (
                     <SelectItem key={conta.id} value={conta.id}>
-                      {conta.descricao}
+                      {NOME_DEVEDORA_EXIBICAO}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -405,7 +409,7 @@ export function ContasSaldoSection({
                 <p className="text-sm text-muted-foreground">Saldo Final</p>
                 <p className="text-3xl font-bold text-destructive">{formatCurrency(saldoFinal, 'BRL')}</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {contaSelecionada.descricao} deve para {contaSelecionada.instituicao}
+                  {NOME_DEVEDORA_EXIBICAO} deve para {contaSelecionada.instituicao}
                 </p>
               </CardContent>
             </Card>
@@ -455,7 +459,7 @@ export function ContasSaldoSection({
             <CardContent className="pt-6">
               <p className="text-lg">
                 <span className="font-semibold">Resumo de {MESES[mes - 1]}/{ano}:</span>{' '}
-                {contaSelecionada.descricao} pegou <span className="font-semibold text-destructive">{formatCurrency(totalPegouMes, 'BRL')}</span>,
+                {NOME_DEVEDORA_EXIBICAO} pegou <span className="font-semibold text-destructive">{formatCurrency(totalPegouMes, 'BRL')}</span>,
                 pagou <span className="font-semibold text-green-600">{formatCurrency(totalPagouMes, 'BRL')}</span>, variação de{' '}
                 <span className={`font-semibold ${variacaoMes > 0 ? 'text-destructive' : variacaoMes < 0 ? 'text-green-600' : ''}`}>
                   {variacaoMes > 0 ? '+' : ''}
@@ -519,7 +523,7 @@ export function ContasSaldoSection({
                       <TableRow key={mov.id}>
                         <TableCell>{format(new Date(`${mov.data}T00:00:00`), 'dd/MM/yyyy', { locale: ptBR })}</TableCell>
                         <TableCell>{mov.empresa_origem || contaSelecionada.instituicao}</TableCell>
-                        <TableCell>{mov.empresa_destino || contaSelecionada.descricao}</TableCell>
+                        <TableCell>{mov.empresa_destino || NOME_DEVEDORA_EXIBICAO}</TableCell>
                         <TableCell>{mov.conta_saida || '-'}</TableCell>
                         <TableCell>{mov.conta_entrada || '-'}</TableCell>
                         <TableCell className="text-right font-semibold">
@@ -597,7 +601,7 @@ export function ContasSaldoSection({
 
           <div className="space-y-4">
             <p className="text-muted-foreground">
-              Defina o saldo inicial de {MESES[mes - 1]}/{ano} para o par {contaSelecionada.instituicao} (credora) e {contaSelecionada.descricao} (devedora).
+              Defina o saldo inicial de {MESES[mes - 1]}/{ano} para o par {contaSelecionada.instituicao} (credora) e {NOME_DEVEDORA_EXIBICAO} (devedora).
             </p>
             <div className="space-y-2">
               <Label>Saldo Inicial (R$)</Label>
@@ -610,7 +614,7 @@ export function ContasSaldoSection({
               />
             </div>
             <p className="text-sm text-muted-foreground">
-              Valor positivo = {contaSelecionada.descricao} deve para {contaSelecionada.instituicao}
+              Valor positivo = {NOME_DEVEDORA_EXIBICAO} deve para {contaSelecionada.instituicao}
             </p>
           </div>
 
