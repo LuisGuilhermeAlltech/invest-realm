@@ -114,8 +114,10 @@ function getErrorText(error: unknown): string {
   if (error instanceof Error) return error.message;
 
   if (typeof error === 'object') {
-    const maybeError = error as { message?: string; details?: string; hint?: string };
-    return [maybeError.message, maybeError.details, maybeError.hint].filter(Boolean).join(' | ');
+    const maybeError = error as { code?: string; message?: string; details?: string; hint?: string };
+    return [maybeError.code, maybeError.message, maybeError.details, maybeError.hint]
+      .filter(Boolean)
+      .join(' | ');
   }
 
   return '';
@@ -123,10 +125,28 @@ function getErrorText(error: unknown): string {
 
 function isMissingMovimentacaoColumnError(error: unknown): boolean {
   const errorText = getErrorText(error).toLowerCase();
+  const errorCode =
+    typeof error === 'object' && error && 'code' in error
+      ? String((error as { code?: string }).code || '').toUpperCase()
+      : '';
+
+  const knownNewColumns = [
+    'empresa_origem',
+    'empresa_destino',
+    'conta_saida',
+    'conta_entrada',
+    'comprovante_url',
+  ];
+
+  const mentionsNewColumn = knownNewColumns.some((column) => errorText.includes(column));
+  const isSchemaCacheError = errorCode === 'PGRST204' || errorText.includes('schema cache');
+  const isMissingColumnText =
+    errorText.includes('column')
+    && (errorText.includes('does not exist') || errorText.includes('could not find'));
+
   return (
     errorText.includes('contas_saldo_movimentacoes')
-    && errorText.includes('column')
-    && errorText.includes('does not exist')
+    && (isMissingColumnText || (isSchemaCacheError && (mentionsNewColumn || errorText.includes('could not find'))))
   );
 }
 
