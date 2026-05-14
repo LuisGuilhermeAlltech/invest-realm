@@ -150,6 +150,24 @@ function isMissingMovimentacaoColumnError(error: unknown): boolean {
   );
 }
 
+function isMissingMetasMensaisTableError(error: unknown): boolean {
+  const errorText = getErrorText(error).toLowerCase();
+  const errorCode =
+    typeof error === 'object' && error && 'code' in error
+      ? String((error as { code?: string }).code || '').toUpperCase()
+      : '';
+
+  const isSchemaCacheError = errorCode === 'PGRST204' || errorCode === 'PGRST205' || errorText.includes('schema cache');
+  const isMissingTableText =
+    errorText.includes('relation')
+    && errorText.includes('does not exist');
+
+  return (
+    (errorText.includes('contas_saldo_metas_mensais') || errorText.includes("table 'public.contas_saldo_metas_mensais'"))
+    && (isSchemaCacheError || isMissingTableText || errorCode === '42P01')
+  );
+}
+
 export function useContasAPagar() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -204,7 +222,12 @@ export function useContasAPagar() {
       .eq('user_id', user.id)
       .order('competencia', { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      if (isMissingMetasMensaisTableError(error)) {
+        return [];
+      }
+      throw error;
+    }
     return (data || []) as ContaSaldoMetaMensal[];
   };
 
@@ -533,18 +556,47 @@ export function useContasAPagar() {
           },
         );
 
-      if (upsertError) throw upsertError;
+      if (upsertError) {
+        if (isMissingMetasMensaisTableError(upsertError)) {
+          const { error: fallbackError } = await supabase
+            .from('contas_a_pagar')
+            .update({ meta_pagamento: valorMeta })
+            .eq('id', contaId)
+            .eq('user_id', user.id);
 
-      return { competencia, valorMeta };
+          if (fallbackError) throw fallbackError;
+          return { competencia, valorMeta, fallbackLegacy: true };
+        }
+
+        throw upsertError;
+      }
+
+      return { competencia, valorMeta, fallbackLegacy: false };
     },
-    onSuccess: ({ competencia, valorMeta }) => {
+    onSuccess: ({ competencia, valorMeta, fallbackLegacy }) => {
       queryClient.invalidateQueries({ queryKey: ['contas_saldo_metas_mensais', user?.id] });
       queryClient.invalidateQueries({ queryKey: ['contas_a_pagar', user?.id] });
-      toast.success(`Meta mensal de ${format(parseIsoDate(competencia), 'MM/yyyy')} salva em ${valorMeta.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`);
+
+      if (fallbackLegacy) {
+        toast.success(
+          `Meta salva em modo compatível para ${format(parseIsoDate(competencia), 'MM/yyyy')} em ${valorMeta.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`,
+        );
+        return;
+      }
+
+      toast.success(
+        `Meta mensal de ${format(parseIsoDate(competencia), 'MM/yyyy')} salva em ${valorMeta.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`,
+      );
     },
     onError: (mutationError) => {
       console.error('Erro ao definir meta mensal:', mutationError);
-      toast.error('Erro ao definir meta mensal');
+      if (isMissingMetasMensaisTableError(mutationError)) {
+        toast.error('Erro ao definir meta mensal: banco desatualizado. Execute a migração de metas mensais.');
+        return;
+      }
+
+      const errorText = getErrorText(mutationError);
+      toast.error(errorText ? `Erro ao definir meta mensal: ${errorText}` : 'Erro ao definir meta mensal');
     },
   });
 
@@ -809,7 +861,29 @@ export function useContasAPagar() {
 
   const getMetaMensalConta = (contaId: string, ano: number, mes: number): ContaSaldoMetaMensal | null => {
     const competencia = getMesInicioFim(ano, mes).competencia;
-    return metasMensaisSaldo.find((meta) => meta.conta_pagar_id === contaId && meta.competencia === competencia) || null;
+    const metaMensal = metasMensaisSaldo.find(
+      (meta) => meta.conta_pagar_id === contaId && meta.competencia === competencia,
+    );
+
+    if (metaMensal) {
+      return metaMensal;
+    }
+
+    const conta = contasSaldo.find((item) => item.id === contaId);
+    if (!conta || !conta.meta_pagamento || conta.meta_pagamento <= 0) {
+      return null;
+    }
+
+    return {
+      id: `legacy-${contaId}-${competencia}`,
+      user_id: conta.user_id,
+      conta_pagar_id: contaId,
+      competencia,
+      valor_meta: conta.meta_pagamento,
+      tipo_meta: 'reducao',
+      created_at: conta.created_at || new Date().toISOString(),
+      updated_at: conta.updated_at || new Date().toISOString(),
+    };
   };
 
   const getResumoMensalContaSaldo = (
