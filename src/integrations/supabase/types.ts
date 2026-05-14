@@ -504,11 +504,57 @@ export type Database = {
           },
         ]
       }
+      contas_saldo_metas_mensais: {
+        Row: {
+          competencia: string
+          conta_pagar_id: string
+          created_at: string
+          id: string
+          tipo_meta: string
+          updated_at: string
+          user_id: string
+          valor_meta: number
+        }
+        Insert: {
+          competencia: string
+          conta_pagar_id: string
+          created_at?: string
+          id?: string
+          tipo_meta?: string
+          updated_at?: string
+          user_id: string
+          valor_meta: number
+        }
+        Update: {
+          competencia?: string
+          conta_pagar_id?: string
+          created_at?: string
+          id?: string
+          tipo_meta?: string
+          updated_at?: string
+          user_id?: string
+          valor_meta?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contas_saldo_metas_mensais_conta_pagar_id_fkey"
+            columns: ["conta_pagar_id"]
+            isOneToOne: false
+            referencedRelation: "contas_a_pagar"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contas_saldo_movimentacoes: {
         Row: {
+          comprovante_url: string | null
+          conta_entrada: string | null
+          conta_saida: string | null
           conta_pagar_id: string
           created_at: string | null
           data: string
+          empresa_destino: string | null
+          empresa_origem: string | null
           id: string
           observacao: string | null
           saldo_anterior: number
@@ -518,9 +564,14 @@ export type Database = {
           valor: number
         }
         Insert: {
+          comprovante_url?: string | null
+          conta_entrada?: string | null
+          conta_saida?: string | null
           conta_pagar_id: string
           created_at?: string | null
           data?: string
+          empresa_destino?: string | null
+          empresa_origem?: string | null
           id?: string
           observacao?: string | null
           saldo_anterior: number
@@ -530,9 +581,14 @@ export type Database = {
           valor: number
         }
         Update: {
+          comprovante_url?: string | null
+          conta_entrada?: string | null
+          conta_saida?: string | null
           conta_pagar_id?: string
           created_at?: string | null
           data?: string
+          empresa_destino?: string | null
+          empresa_origem?: string | null
           id?: string
           observacao?: string | null
           saldo_anterior?: number

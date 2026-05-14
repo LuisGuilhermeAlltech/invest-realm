@@ -56,6 +56,11 @@ export interface MovimentacaoSaldo {
   valor: number;
   saldo_anterior: number;
   saldo_resultante: number;
+  empresa_origem: string | null;
+  empresa_destino: string | null;
+  conta_saida: string | null;
+  conta_entrada: string | null;
+  comprovante_url: string | null;
   observacao: string | null;
   created_at: string;
 }
@@ -68,6 +73,19 @@ export interface ContaSaldoResumoMensal {
   total_acrescido: number;
   total_ajuste_reducao: number;
   qtd_movimentacoes: number;
+}
+
+export type TipoMetaMensalSaldo = 'reducao' | 'aumento';
+
+export interface ContaSaldoMetaMensal {
+  id: string;
+  user_id: string;
+  conta_pagar_id: string;
+  competencia: string;
+  valor_meta: number;
+  tipo_meta: TipoMetaMensalSaldo;
+  created_at: string;
+  updated_at: string;
 }
 
 export const TIPO_CONTA_LABELS: Record<TipoContaAPagar, string> = {

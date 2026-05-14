@@ -33,11 +33,16 @@ export default function ContasAPagar() {
     updateConta,
     quitarConta,
     registrarMovimentacao,
+    definirMetaMensalSaldo,
+    definirSaldoInicialMensal,
+    getResumoMensalContaSaldo,
     getMovimentacoesConta,
     isCreating: isCreatingPayable,
     isUpdating: isUpdatingPayable,
     isQuiting,
     isRegistrandoMovimentacao,
+    isDefinindoMetaMensal,
+    isDefinindoSaldoInicialMensal,
     resumo,
   } = useContasAPagar();
 
@@ -268,8 +273,13 @@ export default function ContasAPagar() {
                 onQuitar={quitarConta}
                 onOpenDetalhe={setContaSaldoDetalhe}
                 onRegistrarMovimentacao={registrarMovimentacao}
+                onDefinirMetaMensal={definirMetaMensalSaldo}
+                onDefinirSaldoInicialMensal={definirSaldoInicialMensal}
+                getResumoMensalConta={getResumoMensalContaSaldo}
                 isQuiting={isQuiting}
                 isRegistrandoMovimentacao={isRegistrandoMovimentacao}
+                isDefinindoMetaMensal={isDefinindoMetaMensal}
+                isDefinindoSaldoInicialMensal={isDefinindoSaldoInicialMensal}
                 statusFiltro={statusFiltroPayable}
                 setStatusFiltro={setStatusFiltroPayable}
                 tipoFiltro={tipoFiltroPayable}
