@@ -225,55 +225,29 @@ export function ContasSaldoSection({
 
   const opcoesContaSaida = useMemo(() => {
     const contasSaida = new Set<string>();
-    const empresaSelecionada = lancamentoEmpresaOrigem.trim();
 
     movimentacoesConta.forEach((mov) => {
       const conta = mov.conta_saida?.trim();
-      if (!conta) return;
-
-      const mesmaEmpresa = !empresaSelecionada || (mov.empresa_origem || '').trim() === empresaSelecionada;
-      if (mesmaEmpresa) {
+      if (conta) {
         contasSaida.add(conta);
       }
     });
 
-    if (contasSaida.size === 0) {
-      movimentacoesConta.forEach((mov) => {
-        const conta = mov.conta_saida?.trim();
-        if (conta) {
-          contasSaida.add(conta);
-        }
-      });
-    }
-
     return Array.from(contasSaida).sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  }, [movimentacoesConta, lancamentoEmpresaOrigem]);
+  }, [movimentacoesConta]);
 
   const opcoesContaEntrada = useMemo(() => {
     const contasEntrada = new Set<string>();
-    const empresaSelecionada = lancamentoEmpresaDestino.trim();
 
     movimentacoesConta.forEach((mov) => {
       const conta = mov.conta_entrada?.trim();
-      if (!conta) return;
-
-      const mesmaEmpresa = !empresaSelecionada || (mov.empresa_destino || '').trim() === empresaSelecionada;
-      if (mesmaEmpresa) {
+      if (conta) {
         contasEntrada.add(conta);
       }
     });
 
-    if (contasEntrada.size === 0) {
-      movimentacoesConta.forEach((mov) => {
-        const conta = mov.conta_entrada?.trim();
-        if (conta) {
-          contasEntrada.add(conta);
-        }
-      });
-    }
-
     return Array.from(contasEntrada).sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  }, [movimentacoesConta, lancamentoEmpresaDestino]);
+  }, [movimentacoesConta]);
 
   useEffect(() => {
     if (!contaSelecionada || !resumoMensal) return;
