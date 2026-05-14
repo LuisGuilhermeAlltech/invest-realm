@@ -259,20 +259,6 @@ export function ContasSaldoSection({
     setSaldoInicialValor(resumoMensal.saldoInicial.toString());
   }, [contaSelecionada, resumoMensal]);
 
-  useEffect(() => {
-    if (!lancamentoContaSaida) return;
-    if (!opcoesContaSaida.includes(lancamentoContaSaida)) {
-      setLancamentoContaSaida('');
-    }
-  }, [lancamentoContaSaida, opcoesContaSaida]);
-
-  useEffect(() => {
-    if (!lancamentoContaEntrada) return;
-    if (!opcoesContaEntrada.includes(lancamentoContaEntrada)) {
-      setLancamentoContaEntrada('');
-    }
-  }, [lancamentoContaEntrada, opcoesContaEntrada]);
-
   if (contas.length === 0 || !contaSelecionada) {
     return (
       <div className="text-center py-12 text-muted-foreground border rounded-md">
@@ -791,42 +777,32 @@ export function ContasSaldoSection({
 
             <div className="space-y-2">
               <Label>Conta de Saída (Origem)</Label>
-              <Select
-                value={lancamentoContaSaida || SELECT_EMPTY_VALUE}
-                onValueChange={(value) => setLancamentoContaSaida(value === SELECT_EMPTY_VALUE ? '' : value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione a conta de saída" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={SELECT_EMPTY_VALUE}>Selecione</SelectItem>
-                  {opcoesContaSaida.map((conta) => (
-                    <SelectItem key={`saida-${conta}`} value={conta}>
-                      {conta}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Input
+                list="conta-saida-opcoes"
+                value={lancamentoContaSaida}
+                onChange={(e) => setLancamentoContaSaida(e.target.value)}
+                placeholder="Ex: Bradesco • Ag 1234 • CC 56789-0"
+              />
+              <datalist id="conta-saida-opcoes">
+                {opcoesContaSaida.map((conta) => (
+                  <option key={`saida-${conta}`} value={conta} />
+                ))}
+              </datalist>
             </div>
 
             <div className="space-y-2">
               <Label>Conta de Entrada (Destino)</Label>
-              <Select
-                value={lancamentoContaEntrada || SELECT_EMPTY_VALUE}
-                onValueChange={(value) => setLancamentoContaEntrada(value === SELECT_EMPTY_VALUE ? '' : value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione a conta de entrada" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={SELECT_EMPTY_VALUE}>Selecione</SelectItem>
-                  {opcoesContaEntrada.map((conta) => (
-                    <SelectItem key={`entrada-${conta}`} value={conta}>
-                      {conta}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Input
+                list="conta-entrada-opcoes"
+                value={lancamentoContaEntrada}
+                onChange={(e) => setLancamentoContaEntrada(e.target.value)}
+                placeholder="Ex: Nubank • PIX CNPJ"
+              />
+              <datalist id="conta-entrada-opcoes">
+                {opcoesContaEntrada.map((conta) => (
+                  <option key={`entrada-${conta}`} value={conta} />
+                ))}
+              </datalist>
             </div>
 
             <div className="md:col-span-2 space-y-2">
